@@ -402,8 +402,78 @@ local cmd_mr_surface = {
 
 minetest.register_chatcommand("mr_surface", cmd_mr_surface)
 
+-- Chatcommand to open maidroid load GUI
+local cmd_maidroid_load_gui = {
+	description = "Open GUI to select and load a saved maidroid",
+	privs = {maidroid=true},
+	func = function(name)
+		lf("load_gui", "Chatcommand invoked by player: " .. name)
+		local player = minetest.get_player_by_name(name)
+		if not player then
+			lf("load_gui", "Player not found: " .. name)
+			return false, "Player not found."
+		end
 
--- Form handler for maidroid teleport GUI
+		-- Get all saved maidroid files
+		local worldpath = minetest.get_worldpath() or "."
+		local files = minetest.get_dir_list(worldpath, false) or {}
+		local maidroids = {}
+		
+		for _, fname in ipairs(files) do
+			-- match files like maidroid_staticdata_<id>.txt
+			local id = fname:match("^maidroid_staticdata_(.+)%.txt$")
+			if id then
+				table.insert(maidroids, {
+					name = id,
+					filename = fname
+				})
+				lf("load_gui", "Found saved maidroid: " .. id .. " in file " .. fname)
+			end
+		end
+		lf("load_gui", "Total saved maidroids found: " .. #maidroids)
+
+		-- Create formspec
+		local formspec = "size[8,9]" ..
+			"label[0.5,0.5;Select Saved Maidroid to Load:]" ..
+			"textlist[0.5,1;7,6;maidroid_list;"
+
+		-- Add maidroids to list
+		if #maidroids == 0 then
+			formspec = formspec .. "No saved maidroids found"
+			lf("load_gui", "No saved maidroids found, showing empty list")
+		else
+			for i, maidroid in ipairs(maidroids) do
+				formspec = formspec .. minetest.formspec_escape(maidroid.name)
+				if i < #maidroids then
+					formspec = formspec .. ","
+				end
+			end
+		end
+
+		formspec = formspec .. "]" ..
+			"button[1,7.5;3,1;load;Load]" ..
+			"button[4,7.5;3,1;cancel;Cancel]"
+
+		-- Store maidroid data for this player
+		if not maidroid.maidroid_load_data then
+			maidroid.maidroid_load_data = {}
+		end
+		maidroid.maidroid_load_data[name] = {
+			maidroids = maidroids,
+			selected_index = nil
+		}
+		lf("load_gui", "Stored maidroid data for player: " .. name .. " (" .. #maidroids .. " maidroids)")
+
+		minetest.show_formspec(name, "maidroid:load_gui", formspec)
+		lf("load_gui", "Opened load GUI for player: " .. name)
+		return true, "Maidroid load GUI opened"
+	end
+}
+
+minetest.register_chatcommand("maidroid_load_gui", cmd_maidroid_load_gui)
+minetest.register_chatcommand("mr_loadgui", cmd_maidroid_load_gui)
+
+-- Form handler for maidroid load GUI
 minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if formname ~= "maidroid:teleport_gui" then
 		return
@@ -487,6 +557,129 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		if maidroid.maidroid_teleport_data and maidroid.maidroid_teleport_data[player_name] then
 			maidroid.maidroid_teleport_data[player_name] = nil
 			lf("teleport_gui", "Cleaned up teleport data after successful teleport for player: " .. player_name)
+		end
+	end
+end)
+
+-- Form handler for maidroid load GUI
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+	if formname ~= "maidroid:load_gui" then
+		return
+	end
+
+	local player_name = player:get_player_name()
+	lf("load_gui", "Form received from player: " .. player_name .. ", fields: " .. dump(fields))
+	
+	-- Handle textlist selection (store the selected index)
+	if fields.maidroid_list and fields.maidroid_list ~= "" then
+		-- Parse selection (format: "CHG:index" or just "index")
+		local index = tonumber(fields.maidroid_list:match("^CHG:(%d+)$") or fields.maidroid_list:match("^(%d+)$"))
+		if index then
+			-- Store the selected index for this player
+			if not maidroid.maidroid_load_data then
+				maidroid.maidroid_load_data = {}
+			end
+			if not maidroid.maidroid_load_data[player_name] then
+				maidroid.maidroid_load_data[player_name] = {}
+			end
+			maidroid.maidroid_load_data[player_name].selected_index = index
+			lf("load_gui", "Stored selected index " .. index .. " for player: " .. player_name)
+		end
+		return -- Don't process other fields yet, wait for button click
+	end
+	
+	-- Handle cancel button
+	if fields.cancel then
+		lf("load_gui", "Cancel button pressed by player: " .. player_name)
+		-- Clean up stored data
+		if maidroid.maidroid_load_data and maidroid.maidroid_load_data[player_name] then
+			maidroid.maidroid_load_data[player_name] = nil
+			lf("load_gui", "Cleaned up load data for player: " .. player_name)
+		end
+		return
+	end
+
+	-- Handle load button
+	if fields.load then
+		lf("load_gui", "Load button pressed by player: " .. player_name)
+		local player_data = maidroid.maidroid_load_data and maidroid.maidroid_load_data[player_name]
+		local maidroids = player_data and player_data.maidroids or {}
+		local selected_index = player_data and player_data.selected_index
+		
+		if not maidroids or #maidroids == 0 then
+			lf("load_gui", "No saved maidroids available for player: " .. player_name)
+			minetest.chat_send_player(player_name, "No saved maidroids available")
+			return
+		end
+
+		if not selected_index then
+			lf("load_gui", "No maidroid selected by player: " .. player_name)
+			minetest.chat_send_player(player_name, "Please select a maidroid first")
+			return
+		end
+
+		lf("load_gui", "Using stored selection index: " .. tostring(selected_index))
+		if selected_index < 1 or selected_index > #maidroids then
+			lf("load_gui", "Invalid selection index: " .. tostring(selected_index) .. " for player: " .. player_name)
+			minetest.chat_send_player(player_name, "Invalid selection")
+			return
+		end
+
+		local selected_maidroid = maidroids[selected_index]
+		if not selected_maidroid or not selected_maidroid.name then
+			lf("load_gui", "Selected maidroid data not available for player: " .. player_name)
+			minetest.chat_send_player(player_name, "Selected maidroid data not available")
+			return
+		end
+
+		-- Load the maidroid using the same logic as mr_load command
+		local worldpath = minetest.get_worldpath() or "."
+		local filename = "maidroid_staticdata_" .. selected_maidroid.name .. ".txt"
+		local filepath = worldpath .. "/" .. filename
+
+		local ok_read, content = maidroid.safe_read_file(filepath)
+		if not ok_read or not content or content == "" then
+			lf("load_gui", "Failed to read staticdata file: " .. filename)
+			minetest.chat_send_player(player_name, "Failed to read staticdata file: " .. filename)
+			return
+		end
+
+		-- The dump file contains a Lua-like table (output of dump(data)).
+		-- Safely evaluate it to reconstruct the data table.
+		local ok_parse, data = pcall(function()
+			local chunk, err = loadstring("return " .. content)
+			if not chunk then
+				error(err or "invalid staticdata dump")
+			end
+			return chunk()
+		end)
+		if not ok_parse or type(data) ~= "table" then
+			lf("load_gui", "Failed to parse staticdata in file: " .. filename)
+			minetest.chat_send_player(player_name, "Failed to parse staticdata in file: " .. filename)
+			return
+		end
+
+		-- Spawn the maidroid near the player and initialize it using the existing on_activate logic.
+		local pos = vector.add(player:get_pos(), { x = 0, y = 0.5, z = 0 })
+		local obj = minetest.add_entity(pos, "maidroid:maidroid")
+		if not obj then
+			lf("load_gui", "Failed to spawn maidroid entity")
+			minetest.chat_send_player(player_name, "Failed to spawn maidroid entity")
+			return
+		end
+
+		local lua = obj:get_luaentity()
+		if lua and lua.on_activate then
+			lua:on_activate(minetest.serialize(data))
+		end
+
+		lf("load_gui", "Successfully loaded maidroid " .. selected_maidroid.name .. " for player: " .. player_name)
+		minetest.chat_send_player(player_name, "Maidroid '" .. selected_maidroid.name .. "' loaded from " .. filename)
+
+		-- Clean up stored data
+		if maidroid.maidroid_load_data and maidroid.maidroid_load_data[player_name] then
+			maidroid.maidroid_load_data[player_name] = nil
+			lf("load_gui", "Cleaned up load data after successful load for player: " .. player_name)
 		end
 	end
 end)
