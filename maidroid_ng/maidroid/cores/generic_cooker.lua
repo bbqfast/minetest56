@@ -8,6 +8,9 @@ local S = maidroid.translator
 -- Import sleep module
 dofile(minetest.get_modpath("maidroid") .. "/sleep.lua")
 
+-- Import craft module
+dofile(minetest.get_modpath("maidroid") .. "/craft.lua")
+
 local on_start, on_pause, on_resume, on_stop, on_step, is_tool
 local task, to_action, to_wander, act
 local get_all_required_craft_items
@@ -58,11 +61,13 @@ local all_take_items = {
 	["default:papyrus"] = 5,
 }
 
+-- ,,i1
 local craft_outputs = {
     "farming:flour",
     "farming:rice_flour",
     "farming:bread_slice",
-    "farming:rhubarb_pie"
+    "farming:rhubarb_pie",
+    "farming:garlic_bread"
 }
 
 -- Configurable distance threshold for teleporting back to activation position
@@ -141,7 +146,7 @@ local function log_chest_taken_metrics()
 end
 
 -- Expose the function globally
-maidroid.get_all_cookable_furnace_inputs = get_all_cookable_furnace_inputs
+-- maidroid.get_all_cookable_furnace_inputs = get_all_cookable_furnace_inputs
 maidroid.get_chest_taken_metrics = function() return chest_taken_metrics end
 
 -- Expose the take items function globally
@@ -197,85 +202,14 @@ local function log_inventory(droid, label)
 	end
 end
 
--- Helper: given a group spec like "group:food_bread", return a list of
--- all registered item names that belong to that group.
-local function get_items_in_group(group_spec)
-	if type(group_spec) ~= "string" then
-		return {}
+local function lfv(verbose, ...)
+	if verbose then
+		lf(...)
 	end
-
-	-- Accept either "group:name" or just "name" as input.
-	local groupname = group_spec
-	local prefix = "group:"
-	if groupname:sub(1, #prefix) == prefix then
-		groupname = groupname:sub(#prefix + 1)
-	end
-	if groupname == "" then
-		return {}
-	end
-
-	local result = {}
-	for name, def in pairs(minetest.registered_items) do
-		-- Skip non-craftable or hidden entries if desired in the future.
-		if minetest.get_item_group(name, groupname) and
-			minetest.get_item_group(name, groupname) > 0 then
-			result[#result + 1] = name
-		end
-	end
-
-	return result
 end
 
--- Function that returns all cookable furnace inputs by examining registered recipes
--- This dynamically discovers all items that can be cooked in a furnace
-local function get_all_cookable_furnace_inputs()
-	local cookable_inputs = {}
-	local seen = {} -- To avoid duplicates
-	
-	-- Debug: log what we're looking for
-	lf("get_all_cookable_furnace_inputs", "Starting search for cookable items")
-	
-	-- Check all registered items by testing them with get_craft_result
-	for item_name, def in pairs(minetest.registered_items) do
-		-- lf("get_all_cookable_furnace_inputs", "Testing item: " .. item_name)
-		-- Skip groups and non-item entries
-		-- if not string.find(item_name, "group:", 1, true) == 1 and item_name ~= "" then
-			
-			-- Test if this item can be cooked using get_craft_result
-			local r = minetest.get_craft_result({
-				method = "cooking",
-				width  = 1,
-				items  = { item_name },
-			})
-			
-			if r and r.item and not r.item:is_empty() then
-				lf("get_all_cookable_furnace_inputs", "Found cookable item: " .. item_name .. " -> " .. r.item:to_string())
-				
-				if not seen[item_name] then
-					seen[item_name] = true
-					cookable_inputs[#cookable_inputs + 1] = item_name
-				end
-			end
-		-- end
-	end
-	
-	-- Also check items with cook_result property (fallback for older mods)
-	for item_name, def in pairs(minetest.registered_items) do
-		if def and def.cook_result then
-			lf("get_all_cookable_furnace_inputs", "Found cook_result for: " .. item_name .. " -> " .. def.cook_result)
-			if not seen[item_name] then
-				seen[item_name] = true
-				cookable_inputs[#cookable_inputs + 1] = item_name
-			end
-		end
-	end
-	
-	-- Sort the results for consistent output
-	table.sort(cookable_inputs)
-	
-	lf("get_all_cookable_furnace_inputs", "Total cookable inputs found: " .. #cookable_inputs)
-	return cookable_inputs
-end
+-- Crafting functions moved to craft.lua
+
 
 
 -- craft_outputs = all_farming_outputs
@@ -876,151 +810,6 @@ local function get_replacements_for_output(output_name, verbose)
   return replacements, result_str
 end
 
--- Similar to get_replacements_for_output, but operates on an explicit
--- list of recipe items (such as recipe.items returned by
--- minetest.get_all_craft_recipes) instead of an output item name.
---
--- Params:
---   items  : array of item strings (recipe grid, row-major)
---   method : optional craft method (defaults to "normal")
---   width  : optional craft width (defaults to 3)
---   verbose: optional boolean for debug logging
---
--- Returns:
---   replacements table in the same shape as register_craft
---   (or nil if none were detected), and the crafted result item stack
---   (or nil on failure).
--- ,,repl
-local function get_replacements_for_recipe(items, method, width, verbose)
-  if not items or #items == 0 then
-    return {}
-  end
-
-  verbose = not not verbose
-
-  local spec = {
-    method = method or "normal",
-    width  = width or 3,
-    items  = items,
-  }
-
-  local _, decremented = minetest.get_craft_result(spec)
-  lfv(verbose, "generic_cooker", "get_replacements_for_recipe: input=" .. dump(spec) .. " decremented=" .. dump(decremented))
-
-  local replacements = {}
-  if decremented and decremented.items then
-    for _, after in ipairs(decremented.items) do
-      if after and not after:is_empty() then
-        local name = after:get_name()
-        if name ~= "" then
-          replacements[#replacements + 1] = name
-          lfv(verbose, "generic_cooker", "get_replacements_for_recipe(items): replacement=" .. name)
-        end
-      end
-    end
-  end
-
-  if #replacements == 0 then
-    lfv(verbose, "generic_cooker", "get_replacements_for_recipe(items): no replacements detected")
-  end
-
-  return replacements
-end
-
--- Helper: return required inputs for a craft output name, split into
--- consumables and replacements.
--- First return value is { [item_name] = total_count, ... } built from
--- the normalized recipe items. Second return value is the replacements
--- list returned (or inferred) by get_replacements_for_recipe, or nil.
--- When no recipe is found, both return values are nil.
--- ,,craft,,req
-local function get_craft_requirements_from_registered(output_name, verbose)
-	if not output_name or output_name == "" then
-		return nil
-	end
-
-
-	local recipes = minetest.get_all_craft_recipes(output_name)
-	lfv(verbose, "generic_cooker", "get_craft_requirements_from_registered: ALLrecipes=" .. dump(recipes))
-	if not recipes or #recipes == 0 then
-		return nil
-	end
-
-	local all = {}
-
-	for _, recipe in ipairs(recipes) do
-		if recipe.items and #recipe.items > 0 then
-			local consumables = {}
-			for _, item in ipairs(recipe.items) do
-				if item ~= "" then
-					local stack = ItemStack(item)
-					local name = stack:get_name()
-					local count = stack:get_count()
-					if name ~= "" and count > 0 then
-						consumables[name] = (consumables[name] or 0) + count
-					end
-				end
-			end
-			if next(consumables) ~= nil then
-				local replacements = get_replacements_for_recipe(recipe.items, recipe.method, recipe.width, verbose)
-				if replacements then
-					lfv(verbose, "generic_cooker", "get_craft_requirements_from_registered: replacements=" .. dump(replacements))
-				end
-				-- Each entry is a tuple: { consumables, replacements }
-				all[#all + 1] = { consumables, replacements }
-			end
-		end
-	end
-
-	if #all == 0 then
-		return nil
-	end
-
-    lfv(verbose, "generic_cooker", ">>>>>>>>>>>>>>>>>>> get_craft_requirements_from_registered: all=" .. dump(all))
-	return all
-end
-
--- Helper: given a list of output specs (e.g. all_farming_outputs),
--- return a flat list of unique required craft input item names across
--- all of them. The list is expected to contain strings acceptable to
--- ItemStack, such as "farming:bread_slice" or "farming:bread_slice 5".
--- The return value is an array-like table of item names, e.g.:
---   { "farming:flour", "bucket:bucket_water", ... }
--- ,,req
-local function get_all_required_craft_items(outputs, verbose)
-	if type(outputs) ~= "table" then
-		return {}
-	end
-
-	local seen = {}
-	local list = {}
-
-	for _, spec in ipairs(outputs) do
-		if type(spec) == "string" and spec ~= "" then
-			local stack = ItemStack(spec)
-			local out_name = stack:get_name()
-			if out_name ~= "" then
-				local recipes = get_craft_requirements_from_registered(out_name, verbose)
-				if recipes then
-					for _, tuple in ipairs(recipes) do
-						local consumables = tuple[1]
-				if consumables then
-					for in_name, _ in pairs(consumables) do
-						if in_name ~= "" and not seen[in_name] then
-							seen[in_name] = true
-							list[#list + 1] = in_name
-						end
-					end
-				end
-			end
-		end
-	end
-		end
-	end
-
-	return list
-end
-
 -- ,,take all ingredient
 function get_combined_take_items(droid)
     return all_furnace_inputs
@@ -1042,7 +831,7 @@ function get_combined_take_items2(droid)
     -- Add ingredients from desired_craft_outputs if available
     if droid and type(droid.desired_craft_outputs) == "table" then
         lf("generic_cooker:get_combined_take_items2", "droid.desired_craft_outputs=" .. dump(droid.desired_craft_outputs))
-        local required_items = get_all_required_craft_items(droid.desired_craft_outputs, false)
+        local required_items = maidroid.get_all_required_craft_items(droid.desired_craft_outputs, false)
         lf("generic_cooker:get_combined_take_items2", "found " .. #required_items .. " required items from desired_craft_outputs")
         
         -- Add required items to take_lookup with default quantity of 5
@@ -1057,6 +846,7 @@ function get_combined_take_items2(droid)
     
     return take_lookup
 end
+
 -- Consumes a fixed number of rice items and adds one rice flour if possible.
 local function craft_rice_flour(droid)
 	local inv = droid and droid:get_inventory()
@@ -1065,7 +855,7 @@ local function craft_rice_flour(droid)
 	end -- if not inv
 
 	-- Get the actual craft recipe for farming:rice_flour from registered crafts.
-	local recipes = get_craft_requirements_from_registered("farming:rice_flour")
+	local recipes = maidroid.get_craft_requirements_from_registered("farming:rice_flour")
 	if not recipes or #recipes == 0 then
 		lf("generic_cooker", "craft_rice_flour: no craft recipe found for farming:rice_flour")
 		return false
@@ -1146,7 +936,6 @@ local function craft_rice_flour(droid)
 		end -- if replacement_name
 	end -- for replacements
 
-
 	-- Add the crafted rice flour.
 	inv:add_item("main", output_stack)
 	lf("generic_cooker", "craft_rice_flour: crafted " .. output_stack:to_string())
@@ -1159,16 +948,14 @@ local function craft_rice_flour(droid)
 	return true
 end -- function craft_rice_flour
 
+-- Sleep functionality now handled by maidroid.sleep module
 
-local function test_get_items_in_groups()
-    items = get_items_in_group("group:food_bread")
-    lf("generic_cooker", "items=" .. dump(items))
-end
+-- Sleep functionality now handled by maidroid.sleep module
 
 local function test_get_craft_requirements()
     name = "farming:pasta"
-	local all = get_craft_requirements_from_registered(name, true)
-	-- local all = get_craft_requirements_from_registered("farming:rice_flour", true)
+	local all = maidroid.get_craft_requirements_from_registered(name, true)
+	-- local all = maidroid.get_craft_requirements_from_registered("farming:rice_flour", true)
 	lf("generic_cooker", ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> test_get_recipe: name=" .. name .. ", requirements=" .. dump(all))
 end
 
@@ -1187,183 +974,10 @@ local function tests()
     error("tests")
 end
 
-local function try_remove_item_for_craft(inv, consumables)
-    local removed_items = {}
-    for name, count in pairs(consumables or {}) do
-        local needed = string.format("%s %d", name, count)
-        local removed = inv:remove_item("main", needed)
-        local got = removed:get_count()
-        if removed:is_empty() or got < count then
-            for _, r in ipairs(removed_items) do
-                if not r:is_empty() then
-                    inv:add_item("main", r)
-                end
-            end
-            if not removed:is_empty() then
-                inv:add_item("main", removed)
-            end
-            return nil
-        end
-        removed_items[#removed_items + 1] = removed
-    end
-    return removed_items
-end
 
--- Helper function to check if all required items are available
-local function check_required_items(inv, consumables, output_name)
-    -- ,,x2
-    local missing = false
-    for name, count in pairs(consumables or {}) do
-        local needed = string.format("%s %d", name, count)
-        lf("generic_cooker", "craft_generic(" .. output_name .. "): checking for " .. needed)
-        if not inv:contains_item("main", needed) then
-            lf("generic_cooker", "craft_generic(" .. output_name .. "): missing " .. needed)
-            missing = true
-            break
-        end
-    end
-    return missing
-end
-
--- Helper function to check required items with group expansion
-local function check_required_items_with_group(inv, consumables, output_name)
-    -- ,,x1
-    local missing = false
-    local matching_items = {} -- Store the actual items that will be used (list of {name, count})
-    
-    for name, count in pairs(consumables or {}) do
-        -- Check if this is a group item
-        if string.find(name, "group:", 1, true) == 1 then
-            -- This is a group, get all items in this group
-            local group_name = string.sub(name, 7) -- Remove "group:" prefix
-            local group_items = get_items_in_group("group:" .. group_name)
-            
-            lf("generic_cooker", "craft_generic(" .. output_name .. "): checking group " .. group_name .. " with items: " .. dump(group_items))
-            
-            -- Check if any item in the group is available
-            local found_item = false
-            for _, item_name in ipairs(group_items or {}) do
-                -- local needed = string.format("%s %d", item_name, count)
-                local needed = string.format("%s %d", item_name, count)
-                lf("generic_cooker", "craft_generic(" .. output_name .. "): checking for " .. needed)
-                if inv:contains_item("main", needed) then
-                    lf("generic_cooker", "craft_generic(" .. output_name .. "): found group item " .. needed)
-                    table.insert(matching_items, {name = item_name, count = count}) -- Store the actual item that matches the group
-                    found_item = true
-                    break
-                end
-            end
-            
-            if not found_item then
-                lf("generic_cooker", "craft_generic(" .. output_name .. "): missing any item from group " .. group_name)
-                missing = true
-                break
-            end
-        else
-            -- This is a regular item, check normally
-            local needed = string.format("%s %d", name, count)
-            lf("generic_cooker", "craft_generic(" .. output_name .. "): checking for " .. needed)
-            if inv:contains_item("main", needed) then
-                table.insert(matching_items, {name = name, count = count}) -- Store the regular item
-            else
-                lf("generic_cooker", "craft_generic(" .. output_name .. "): missing " .. needed)
-                missing = true
-                break
-            end
-        end
-    end
-    return missing, matching_items
-end
 
 -- Helper: generic craft based on craft_outputs list.
 -- Iterates craft_outputs and performs the first craftable recipe in the maidroid's inventory.
--- ,,cg,,craft
-local function craft_generic(droid, craft_outputs)
-    lf("action_metrics", "craft_generic called")
-	
-	-- Update action_taken_metrics
-	action_taken_metrics["crafts"] = (action_taken_metrics["crafts"] or 0) + 1
-	lf("action_metrics", "crafts called: " .. action_taken_metrics["crafts"])
-	
-    local inv = droid and droid:get_inventory()
-    if not inv then
-        return false
-    end -- if not inv
-
-    local best_output_stack = nil
-    local best_output_name = nil
-    local best_consumables = nil
-    local best_replacements = nil
-    local best_ingredient_count = -1
-
-    for _, spec in ipairs(craft_outputs or {}) do
-        local output_stack = ItemStack(spec)
-        local output_name = output_stack:get_name()
-        if output_name ~= "" then
-            local recipe_options = get_craft_requirements_from_registered(output_name)
-            if recipe_options then
-                -- Ensure there is room for the result before consuming inputs.
-                if inv:room_for_item("main", output_stack) then
-                    -- Try each recipe option and select the craftable one with the most ingredients.
-                    for _, recipe_tuple in ipairs(recipe_options) do
-                        local consumables = recipe_tuple[1]
-                        local replacements = recipe_tuple[2]
-
-                        local missing, matching_items = check_required_items_with_group(inv, consumables, output_name)
-
-                        if not missing then
-                            -- Convert matching_items list back to consumables table format
-                            local new_consumables = {}
-                            for _, item in ipairs(matching_items) do
-                                new_consumables[item.name] = item.count
-                            end
-
-                            local ingredient_count = 0
-                            for _, count in pairs(new_consumables) do
-                                ingredient_count = ingredient_count + (count or 0)
-                            end
-
-                            if ingredient_count > best_ingredient_count then
-                                best_output_stack = output_stack
-                                best_output_name = output_name
-                                best_consumables = new_consumables
-                                best_replacements = replacements
-                                best_ingredient_count = ingredient_count
-                            end
-                        end
-                    end -- for recipe_options loop
-                end
-            end -- if recipe_options
-        end -- if output
-    end
-
-    if best_consumables and best_output_stack then
-        local removed_items = try_remove_item_for_craft(inv, best_consumables)
-        if removed_items then
-            for _, rep in ipairs(best_replacements or {}) do
-                lf("generic_cooker", "craft_generic(" .. best_output_name .. "): replacement " .. dump(rep))
-                local replacement_name = rep
-                if replacement_name and replacement_name ~= "" then
-                    local replacement_stack = ItemStack(replacement_name)
-                    inv:add_item("main", replacement_stack)
-                    lf("generic_cooker", "craft_generic(" .. best_output_name .. "): returned replacement " .. replacement_stack:to_string())
-                end
-            end
-
-            inv:add_item("main", best_output_stack)
-            lf("generic_cooker", "craft_generic: crafted " .. best_output_stack:to_string())
-
-            -- Update craft_metrics
-            local crafted_name = best_output_stack:get_name()
-            craft_metrics[crafted_name] = (craft_metrics[crafted_name] or 0) + best_output_stack:get_count()
-            lf("craft_metrics", "crafted " .. best_output_stack:to_string() .. " total: " .. craft_metrics[crafted_name])
-
-            return true
-        end
-    end
-
-    return false
-end
 
 -- Sleep functionality now handled by maidroid.sleep module
 
@@ -1442,7 +1056,7 @@ task = function(droid)
 	-- : randomly pick one of four actions, with choice 1 being twice as likely as others
 	-- Use math.random(4): values 1 and 2 map to choice 1, values 3 and 4 map to choices 2, 3, and 4
 	local choice = math.random(4)
-    -- choice = 3
+    -- choice = 2
 
 	if choice == 1 then
 		lf("DEBUG generic_cooker:task", "CHOICE=1: try_feed_get_from_furnace__generic for ")
@@ -1450,7 +1064,8 @@ task = function(droid)
     elseif choice == 2 then
         lf("DEBUG generic_cooker:task", "CHOICE=2: craft_generic")
         -- craft_rice_flour(droid)
-        craft_generic(droid, craft_outputs)
+        local myoutput = maidroid.cores.generic_cooker.get_desired_craft_outputs(droid)
+        maidroid.craft_generic(droid, myoutput)
     elseif choice == 3 then
 		lf("DEBUG generic_cooker:task", "CHOICE=3: try_get_item_from_nearby_chest for all_take_items count=" .. #all_take_items)
 	    	-- try_get_item_from_nearby_chest(droid, pos, all_take_items)
@@ -1657,7 +1272,7 @@ maidroid.register_core("generic_cooker", {
 maidroid.cores.generic_cooker.max_distance_from_activation = max_distance_from_activation
 maidroid.cores.generic_cooker.set_max_distance_from_activation = set_max_distance_from_activation
 maidroid.cores.generic_cooker.get_max_distance_from_activation = get_max_distance_from_activation
-maidroid.cores.generic_cooker.get_items_in_group = get_items_in_group
+maidroid.cores.generic_cooker.get_items_in_group = maidroid.craft.get_items_in_group
 
 -- Also expose directly to maidroid table as fallback
 maidroid.set_max_distance_from_activation = set_max_distance_from_activation
@@ -1679,6 +1294,15 @@ maidroid.cores.generic_cooker.set_desired_craft_outputs = function(droid, output
 	droid.desired_craft_outputs = outputs
 	return true
 end
+
+maidroid.cores.generic_cooker.get_desired_craft_outputs = function(droid)
+	if droid and type(droid.desired_craft_outputs) == "table" then
+		return droid.desired_craft_outputs
+	end
+	return {}
+end
+
+
 
 maidroid.cores.generic_cooker.set_cooklist = function(droid, cooklist)
 	lf("generic_cooker", "set_cooklist: " .. dump(cooklist))
@@ -1716,7 +1340,7 @@ minetest.register_chatcommand("test_cookable_inputs", {
 	description = "Test the get_all_cookable_furnace_inputs function",
 	privs = {server=true},
 	func = function(name)
-		local cookable_inputs = maidroid.get_all_cookable_furnace_inputs()
+		local cookable_inputs = maidroid.craft.get_all_cookable_furnace_inputs()
         lf("test_cookable_inputs", "cookable_inputs=" .. dump(cookable_inputs))
 		local output = {"Cookable furnace inputs found: " .. #cookable_inputs}
 		local max_lines = 30

@@ -1090,6 +1090,11 @@ task = function(self)
         -- lf("task", "cannot CONVERT: "..lnode.name)
     end
 
+    local craft_outputs = {
+        "farming:garlic_clove"
+    }
+    maidroid.craft_generic(self, craft_outputs)
+
     -- First, occasionally try to dump an oversized stack into a nearby chest.
     -- This may initiate a path-following action toward a chest.
     if not self._mow_only and maybe_dump_to_nearby_chest(self, inv, pos) then

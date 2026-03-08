@@ -159,8 +159,7 @@ Updates:
 - remove dup items from craftable and cookable
 - added reset to cooker desirable and cooklist
 - handle fridge empty, stop counting
-- traveller reward change
-- generic get front or around
+- traveller reward changeW
 - fix ltee teleport
 - traveller UI, select reward
 - edible items tracking
@@ -175,6 +174,7 @@ Updates:
 - handling dimension mode
 - UI configure low fence mode
 - add unbounded, fast dry soil test
+- UI load maidroid from file
 
 - refac: move non ui func out of api
 - refac: move register core
