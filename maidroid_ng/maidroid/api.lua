@@ -94,6 +94,19 @@ local mydump = function(func, msg, obj)
 	-- lf(func, msg..dump(obj))
 end
 
+-- Assert that a value is a list/array
+function maidroid.assert_list(t)
+    assert(type(t) == "table", "Expected table")
+
+    for k,v in pairs(t) do
+        assert(type(k) == "number" and k >= 1 and math.floor(k) == k,
+            "Invalid key: "..tostring(k))
+
+        assert(type(v) == "string",
+            "Invalid value at index "..k.." (expected string)")
+    end
+end
+
 -- animation frame data of "models/maidroid.b3d".
 maidroid.animation = {
 	STAND     = {x =   1, y =  78},
@@ -189,7 +202,9 @@ end
 
 function maidroid.populate_items_page(inv, droid, page_items, list_name, slot_count)
 	-- Clear inventory list first
+    lf("api:populate_items_page", "call with page_items: " .. dump(page_items) .. " list_name: " .. list_name .. " slot_count: " .. slot_count)
 	inv:set_list(list_name, {})
+    maidroid.assert_list(page_items)
 	
 	-- Fill inventory with current page items, preserving positions
 	for i = 1, slot_count do
@@ -525,6 +540,7 @@ end
 
 -- Initialize cooklist page items with given item list
 function maidroid.init_cooklist_pageitems(droid, item_list)
+    maidroid.assert_list(item_list)
 	if not droid then
 		lf("cooker_inventory", "ERROR: Could not find maidroid for init_cooklist_pageitems")
 		return
@@ -1951,6 +1967,16 @@ local function on_activate(self, staticdata)
 			self._mow_only = data._mow_only
 			lf("api", "Loaded saved mow only mode: " .. tostring(self._mow_only))
 		end
+
+		if data.desired_craft_outputs ~= nil then
+			self.desired_craft_outputs = data.desired_craft_outputs
+			lf("api", "Loaded saved desired craft outputs: " .. tostring(self.desired_craft_outputs))
+		end
+
+		if data.cooklist ~= nil then
+			self.cooklist = data.cooklist
+			lf("api", "Loaded saved cooklist outputs: " .. tostring(self.desired_craft_outputs))
+		end        
 	end
 
 	self.object:set_nametag_attributes({ text = self.nametag, color = { a=255, r=96, g=224, b=96 }})

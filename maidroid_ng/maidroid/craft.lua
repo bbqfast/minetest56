@@ -276,7 +276,7 @@ end
 -- Main crafting function
 -- ,,cg,,craft
 local function craft_generic(droid, craft_outputs)
-    -- lf("craft_generic", "craft_generic called: craft_ouputs="..dump(craft_outputs))
+    lf("craft_generic", "craft_generic called: craft_ouputs="..dump(craft_outputs))
 
     lf("action_metrics", "craft_generic called")
 

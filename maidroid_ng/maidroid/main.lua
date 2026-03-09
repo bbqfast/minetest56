@@ -93,27 +93,34 @@ maidroid.get_staticdata = function(self, captured)
 	-- dump final data with inventory included
     mydump("get_staticdata", "5====================== get_staticdata_final_with_inventory", data)
 
-	if not captured then
-		data.home = self.home
-		-- Save activation position for generic_cooker core to retain last spawned position
-		if self._activation_pos then
-			data.activation_pos = self._activation_pos
-		end
-        
-        
-		-- Save farming dimension mode
-		if self.farming_dim_mode then
-			data.farming_dim_mode = self.farming_dim_mode
-		end
-		-- Save low fence mode
-		if self._use_low_fence ~= nil then
-			data._use_low_fence = self._use_low_fence
-		end
-		-- Save mow only mode
-		if self._mow_only ~= nil then
-			data._mow_only = self._mow_only
-		end
-	end
+	-- if not captured then
+    data.home = self.home
+    -- Save activation position for generic_cooker core to retain last spawned position
+    if self._activation_pos then
+        data.activation_pos = self._activation_pos
+    end
+    
+    if self.cooklist then
+        data.cooklist = self.cooklist
+    end
+
+    if self.desired_craft_outputs then
+        data.desired_craft_outputs = self.desired_craft_outputs
+    end
+
+    -- Save farming dimension mode
+    if self.farming_dim_mode then
+        data.farming_dim_mode = self.farming_dim_mode
+    end
+    -- Save low fence mode
+    if self._use_low_fence ~= nil then
+        data._use_low_fence = self._use_low_fence
+    end
+    -- Save mow only mode
+    if self._mow_only ~= nil then
+        data._mow_only = self._mow_only
+    end
+	-- end
 
 
 	local id_str = "N/A"

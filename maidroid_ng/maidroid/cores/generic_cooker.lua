@@ -816,17 +816,22 @@ function get_combined_take_items(droid)
 end
 
 -- combine short list of take items with the ingredients from player selected recipe
-function get_combined_take_items2(droid)
+-- ,,combine
+function get_combined_take_items2(droid, my_take_items, cooklist)
     local take_lookup = {} -- Return hash map directly: {item_name: quantity}
     
-    -- Copy existing all_take_items (already a hash map)
-    for item_name, quantity in pairs(all_take_items) do
-        take_lookup[item_name] = quantity
+    -- Copy existing my_take_items (already a hash map)
+    if my_take_items and type(my_take_items) == "table" then
+        for item_name, quantity in pairs(my_take_items) do
+            take_lookup[item_name] = quantity
+        end
+        
+        local count = 0
+        for _ in pairs(take_lookup) do count = count + 1 end
+        lf("generic_cooker:get_combined_take_items2", "copied " .. count .. " items from my_take_items")
+    else
+        lf("generic_cooker:get_combined_take_items2", "no my_take_items provided")
     end
-    
-    local count = 0
-    for _ in pairs(take_lookup) do count = count + 1 end
-    lf("generic_cooker:get_combined_take_items2", "copied " .. count .. " items from all_take_items")
     
     -- Add ingredients from desired_craft_outputs if available
     if droid and type(droid.desired_craft_outputs) == "table" then
@@ -836,12 +841,50 @@ function get_combined_take_items2(droid)
         
         -- Add required items to take_lookup with default quantity of 5
         for _, item_name in ipairs(required_items) do
-            -- Only add if not already in the lookup
-            if not take_lookup[item_name] then
-                take_lookup[item_name] = 5
-                lf("generic_cooker:get_combined_take_items", " added ingredient " .. item_name .. " with quantity 5")
+            -- Check if this is a group item
+            if string.find(item_name, "group:", 1, true) then
+                -- This is a group item, get actual items from the group
+                local group_items = maidroid.get_items_in_group(item_name)
+                lf("generic_cooker:get_combined_take_items2", " found group item " .. item_name .. " with " .. #group_items .. " items")
+                
+                -- Add each item from the group to take_lookup
+                for _, group_item in ipairs(group_items) do
+                    if not take_lookup[group_item] then
+                        take_lookup[group_item] = 5
+                        lf("generic_cooker:get_combined_take_items", " added group item " .. group_item .. " with quantity 5")
+                    end
+                end
+            else
+                -- This is a regular item, add it directly
+                if not take_lookup[item_name] then
+                    take_lookup[item_name] = 5
+                    lf("generic_cooker:get_combined_take_items", " added ingredient " .. item_name .. " with quantity 5")
+                end
             end
         end
+    end
+    
+    -- Add items from cooklist if available
+    if cooklist and type(cooklist) == "table" then
+        lf("generic_cooker:get_combined_take_items2", "adding items from cooklist")
+        local cooklist_count = 0
+        
+        for _, cook_item in ipairs(cooklist) do
+            if cook_item.item_name and cook_item.count then
+                -- Add cooklist item to take_lookup
+                if not take_lookup[cook_item.item_name] then
+                    take_lookup[cook_item.item_name] = cook_item.count
+                    cooklist_count = cooklist_count + 1
+                    lf("generic_cooker:get_combined_take_items2", " added cooklist item " .. cook_item.item_name .. " with quantity " .. cook_item.count)
+                else
+                    lf("generic_cooker:get_combined_take_items2", " cooklist item " .. cook_item.item_name .. " already exists in take_lookup")
+                end
+            end
+        end
+        
+        lf("generic_cooker:get_combined_take_items2", "added " .. cooklist_count .. " items from cooklist")
+    else
+        lf("generic_cooker:get_combined_take_items2", "no cooklist provided")
     end
     
     return take_lookup
@@ -1000,7 +1043,7 @@ act = function(droid, dtime)
 			take_item_from_chest(
 				droid,
 				target.pos,
-				get_combined_take_items2(droid)
+				get_combined_take_items2(droid, all_take_items, droid.cooklist)
 			)
         else
             lf("generic_cooker:act", "generic_cooker_take_item: no target")
@@ -1055,8 +1098,8 @@ task = function(droid)
 
 	-- : randomly pick one of four actions, with choice 1 being twice as likely as others
 	-- Use math.random(4): values 1 and 2 map to choice 1, values 3 and 4 map to choices 2, 3, and 4
-	local choice = math.random(4)
-    -- choice = 2
+	local choice = math.random(3)
+    choice = 6
 
 	if choice == 1 then
 		lf("DEBUG generic_cooker:task", "CHOICE=1: try_feed_get_from_furnace__generic for ")
@@ -1214,14 +1257,17 @@ on_start = function(droid)
     -- tests()
     lf("generic_cooker", "test")
 
-    droid.desired_craft_outputs = craft_outputs
+    if not droid.desired_craft_outputs then
+        droid.desired_craft_outputs = craft_outputs
+    end
     
     -- Initialize cooklist with cookable_inputs from api.lua
-    if maidroid.cookable_inputs then
+    -- if maidroid.cookable_inputs and not droid.cooklist then
+    if  not droid.cooklist then
         maidroid.cores.generic_cooker.set_cooklist(droid, maidroid.cookable_inputs)
         lf("generic_cooker", "Initialized cooklist with cookable_inputs: " .. dump(maidroid.cookable_inputs))
     else
-        lf("generic_cooker", "Warning: maidroid.cookable_inputs not available")
+        lf("generic_cooker", "Warning: maidroid.cookable_inputs not available or cooklist already defined")
     end
     
     log_inventory(droid)
@@ -1313,6 +1359,25 @@ maidroid.cores.generic_cooker.set_cooklist = function(droid, cooklist)
         table.insert(droid.cooklist, { item_name = item_name, count = 5 })
     end
 end
+
+-- Convert cooklist back to a simple list of item names
+maidroid.cores.generic_cooker.get_cooklist_flat = function(droid)
+    cooklist = droid.cooklist;
+    if not cooklist or type(cooklist) ~= "table" then
+        return {}
+    end
+    
+    local flat_list = {}
+    for _, cook_item in ipairs(cooklist) do
+        if cook_item.item_name then
+            table.insert(flat_list, cook_item.item_name)
+        end
+    end
+    
+    return flat_list
+end
+
+
 
 maidroid.cores.generic_cooker.get_cookable_items = function()
     

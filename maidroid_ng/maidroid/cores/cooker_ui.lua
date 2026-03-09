@@ -45,19 +45,23 @@ function maidroid.build_complete_desirable_list(droid)
     -- lf("api:build_complete_desirable_list", "build_complete_desirable_list: " .. dump(droid))
 	local all_desired_items = {}
 	
+    -- lf("cooker_ui", "build_complete_desirable_list: " .. dump(droid.desirable_page_items))
 	-- Build complete list from all pages
 	if type(droid.desirable_page_items) == "table" then
 		for page_num, page_items in pairs(droid.desirable_page_items) do
-			for _, item in ipairs(page_items) do
-				local already_exists = false
-				for _, existing_item in ipairs(all_desired_items) do
-					if existing_item == item then
-						already_exists = true
-						break
+			-- Use pairs instead of ipairs to handle gaps in the array
+			for slot_index, item in pairs(page_items) do
+				if item and item ~= "" then -- Skip empty slots
+					local already_exists = false
+					for _, existing_item in ipairs(all_desired_items) do
+						if existing_item == item then
+							already_exists = true
+							break
+						end
 					end
-				end
-				if not already_exists then
-					table.insert(all_desired_items, item)
+					if not already_exists then
+						table.insert(all_desired_items, item)
+					end
 				end
 			end
 		end
@@ -75,16 +79,19 @@ function maidroid.build_complete_cooklist_list(droid)
 	-- Build complete list from all pages
 	if type(droid.cooklist_page_items) == "table" then
 		for page_num, page_items in pairs(droid.cooklist_page_items) do
-			for _, item in ipairs(page_items) do
-				local already_exists = false
-				for _, existing_item in ipairs(all_cooklist_items) do
-					if existing_item == item then
-						already_exists = true
-						break
+			-- Use pairs instead of ipairs to handle gaps in the array
+			for slot_index, item in pairs(page_items) do
+				if item and item ~= "" then -- Skip empty slots
+					local already_exists = false
+					for _, existing_item in ipairs(all_cooklist_items) do
+						if existing_item == item then
+							already_exists = true
+							break
+						end
 					end
-				end
-				if not already_exists then
-					table.insert(all_cooklist_items, item)
+					if not already_exists then
+						table.insert(all_cooklist_items, item)
+					end
 				end
 			end
 		end
@@ -264,10 +271,13 @@ local function handle_cookable_logic(self)
 	
 	local cooking_inv_id = self.cooking_inventory_id
 	local cooking_inv = maidroid.cooking_inventories[cooking_inv_id]
-	if cooking_inv then
+
+    if cooking_inv then
 		lf("cooker_tab", "Found cooking inventory, updating selection")
 		if not self.cooklist_page_items then
-			maidroid.init_cooklist_pageitems(self, maidroid.cookable_inputs)
+            list = maidroid.cores.generic_cooker.get_cooklist_flat(self)
+			-- maidroid.init_cooklist_pageitems(self, maidroid.cookable_inputs)
+			maidroid.init_cooklist_pageitems(self, list)
 		end
 	else
 		lf("cooker_tab", "ERROR: Could not find cooking inventory!")
@@ -297,26 +307,35 @@ local function handle_cooklist_logic(self, cooking_inv)
 	-- Cooklist section (below cookables)
 	-- Initialize cooklist page items if needed
 	if not self.cooklist_page_items then
+        -- error("handle_cooklist_logic")
 		local all_farming_outputs = {}
 		if maidroid.cores and maidroid.cores.generic_cooker then
 			local cooker_items = dofile(maidroid.modpath .. "/cores/cooker_items.lua")
 			all_farming_outputs = cooker_items.all_farming_outputs or {}
 		end
-		maidroid.init_cooklist_pageitems(self, maidroid.cookable_inputs)
+        lf("handle_cooklist_logic", "- - - -- -maidroid.cooklist=" .. dump(self.cooklist))
+		-- maidroid.init_cooklist_pageitems(self, maidroid.cookable_inputs)
+        list = maidroid.cores.generic_cooker.get_cooklist_flat(self)
+		maidroid.init_cooklist_pageitems(self, list)
 	end
 	
 	-- Calculate cooklist pagination variables
 	local cooklist_data = {}
 	if maidroid.cores and maidroid.cores.generic_cooker then
 		local cooker_items = dofile(maidroid.modpath .. "/cores/cooker_items.lua")
-		cooklist_data = cooker_items.all_farming_outputs or {}
+		-- cooklist_data = cooker_items.all_farming_outputs or {}
+		-- cooklist_data = self.cooklist
+		cooklist_data = maidroid.cores.generic_cooker.get_cooklist_flat(self)
+        
 	end
-	
+
+    lf("handle_cooklist_logic", "cooklist=" .. dump(cooklist_data))
 	local cooklist_total_pages, cooklist_current_page = maidroid.calculate_pagination(self, #cooklist_data, 6, 1, "cooklist_page")
 	
 	-- Get current cooklist page items
 	local cooklist_page_items = maidroid.populate_current_page(self, cooklist_current_page, 6, #cooklist_data, "cooklist_page_items", "cooklist")
-	
+	lf("handle_cooklist_logic", "cooklist_page_items=" .. dump(cooklist_page_items))
+
 	-- Update cooklist inventory with current page items
 	maidroid.populate_items_page(cooking_inv, self, cooklist_page_items, "cooklist", 6)
 	
