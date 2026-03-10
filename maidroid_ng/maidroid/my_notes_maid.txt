@@ -175,6 +175,10 @@ Updates:
 - UI configure low fence mode
 - add unbounded, fast dry soil test
 - UI load maidroid from file
+- fixed group expansion when taking craftable item from chest
+- fix bug incorrectly populate cook with with hash map
+- cooklist and desirable now save / load coorectly
+
 
 - refac: move non ui func out of api
 - refac: move register core

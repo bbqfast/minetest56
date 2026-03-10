@@ -1099,7 +1099,7 @@ task = function(droid)
 	-- : randomly pick one of four actions, with choice 1 being twice as likely as others
 	-- Use math.random(4): values 1 and 2 map to choice 1, values 3 and 4 map to choices 2, 3, and 4
 	local choice = math.random(3)
-    choice = 6
+    choice = 5
 
 	if choice == 1 then
 		lf("DEBUG generic_cooker:task", "CHOICE=1: try_feed_get_from_furnace__generic for ")
@@ -1113,9 +1113,11 @@ task = function(droid)
 		lf("DEBUG generic_cooker:task", "CHOICE=3: try_get_item_from_nearby_chest for all_take_items count=" .. #all_take_items)
 	    	-- try_get_item_from_nearby_chest(droid, pos, all_take_items)
 	    	try_get_item_from_nearby_chest(droid, pos, get_combined_take_items(droid))
-	else
+	elseif choice == 4 then 
 		lf("DEBUG generic_cooker:task", "CHOICE=4: try_sleep_in_bed")
 	    	maidroid.sleep.try_sleep_in_bed(droid, pos, {GenericCookerTarget = GenericCookerTarget, to_action = to_action, name = "generic_cooker"}, 12)
+    else
+        lf("ERROR generic_cooker:task", "Invalid choice: " .. choice)
 	end
 end
 

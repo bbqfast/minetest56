@@ -101,6 +101,69 @@ function maidroid.build_complete_cooklist_list(droid)
 	return all_cooklist_items
 end
 
+
+-- Helper function to handle moving items from cooklist to cookable list
+function maidroid.handle_change_cooklist(droid)
+	lf("cooker_inventory", "Item moved from cooklist to cookable, updating cooking outputs")
+	
+	if not droid then
+		lf("cooker_inventory", "ERROR: Could not find maidroid for inventory " .. tostring(droid.cooking_inventory_id))
+		return
+	end
+	
+	-- Get all items from cooklist list (current inventory state)
+	local cooking_inv = maidroid.cooking_inventories[droid.cooking_inventory_id]
+	local page_data = {} -- Store both items and empty positions
+	
+	for i = 1, 6 do -- cooklist has 6 slots
+		local stack = cooking_inv:get_stack("cooklist", i)
+		if not stack:is_empty() then
+			page_data[i] = stack:get_name() -- Store item at its position
+		else
+			page_data[i] = nil -- Explicitly mark empty slot
+		end
+	end
+	
+	-- Get current page
+	local current_page = (droid.cooklist_page or 1)
+	
+	-- Initialize page items tracking if not exists
+	if not droid.cooklist_page_items then
+		droid.cooklist_page_items = {}
+	end
+	
+	-- Store current page data with positions preserved
+	droid.cooklist_page_items[current_page] = page_data
+	
+	-- Build complete list from all pages using helper function
+	local all_cooklist_items = maidroid.build_complete_cooklist_list(droid)
+	
+	-- Update generic_cooker's desired cooking outputs
+    -- maidroid.cores.generic_cooker.set_cooklist(droid, all_cooklist_items)
+
+    lf("cooker_inventory", "Updated desired cooking outputs: " .. tostring(maidroid.cores.generic_cooker) .. "cooklist: " .. tostring(maidroid.cores.generic_cooker.set_cooklist ))
+    
+    -- Log all visible functions from maidroid.cores.generic_cooker
+    -- local visible_functions = {}
+    -- for func_name, func_value in pairs(maidroid.cores.generic_cooker) do
+    --     if type(func_value) == "function" then
+    --         visible_functions[#visible_functions + 1] = func_name
+    --     end
+    -- end
+    -- lf("cooker_inventory", "Visible functions in maidroid.cores.generic_cooker: " .. table.concat(visible_functions, ", "))
+	if maidroid.cores.generic_cooker and maidroid.cores.generic_cooker.set_cooklist then
+		-- maidroid.cores.generic_cooker.set_desired_cooking_outputs(droid, all_cooklist_items)
+		maidroid.cores.generic_cooker.set_cooklist(droid, all_cooklist_items)
+        
+	else
+		droid.cooklist = all_cooklist_items
+	end
+	-- error("test")
+	lf("cooker_inventory", "Updated desired cooking outputs: " .. dump(all_cooklist_items))
+end
+
+
+
 -- Create cooker events for cooking inventory
 local function create_cooker_events(self, inventory_name)
 	self.cooking_inventory_id = inventory_name
@@ -187,6 +250,105 @@ local function create_cooker_events(self, inventory_name)
 	inventory:set_size("cooklist", 6)
 
 	return inventory
+end
+
+-- Initialize cookable page items with given item list
+function maidroid.init_cookable_pageitems(droid, item_list, cooklist_items)
+	if not droid then
+		lf("cooker_inventory", "ERROR: Could not find maidroid for init_cookable_pageitems")
+		return
+	end
+	
+	-- Initialize page items tracking if not exists
+	if not droid.cookable_page_items then
+		droid.cookable_page_items = {}
+	end
+	
+	-- Clear existing pages
+	droid.cookable_page_items = {}
+	
+	-- Store items in pages of 12 items each
+	local page_num = 1
+	local page_data = {}
+	
+	for i, item in ipairs(item_list) do
+		-- Check if item is already in cooklist list
+		local item_in_cooklist = false
+		for _, cooklist_item in ipairs(cooklist_items) do
+			if cooklist_item == item then
+				item_in_cooklist = true
+				break
+			end
+		end
+		
+		-- Calculate position in current page (1-12)
+		local pos_in_page = ((i - 1) % 12) + 1
+		
+		-- Create new page if needed
+		if pos_in_page == 1 and i > 1 then
+			droid.cookable_page_items[page_num] = page_data
+			page_num = page_num + 1
+			page_data = {}
+		end
+		
+		-- Store item at its position in the page, or leave blank if already in cooklist
+		if item_in_cooklist then
+			page_data[pos_in_page] = ""  -- Leave slot blank
+			lf("cooker_inventory", "Item " .. item .. " already in cooklist, leaving cookable slot blank at position " .. pos_in_page)
+		else
+			page_data[pos_in_page] = item
+		end
+	end
+	
+	-- Store the last page if it has items
+	if next(page_data) ~= nil then
+		droid.cookable_page_items[page_num] = page_data
+	end
+	
+	lf("cooker_inventory", "Initialized cookable_page_items with " .. #item_list .. " items across " .. page_num .. " pages (duplicates filtered)")
+end
+
+-- Initialize cooklist page items with given item list
+function maidroid.init_cooklist_pageitems(droid, item_list)
+    maidroid.assert_list(item_list)
+	if not droid then
+		lf("cooker_inventory", "ERROR: Could not find maidroid for init_cooklist_pageitems")
+		return
+	end
+	
+	-- Initialize page items tracking if not exists
+	if not droid.cooklist_page_items then
+		droid.cooklist_page_items = {}
+	end
+	
+	-- Clear existing pages
+	droid.cooklist_page_items = {}
+	
+	-- Store items in pages of 6 items each (since cooklist uses 6 slots)
+	local page_num = 1
+	local page_data = {}
+	
+	for i, item in ipairs(item_list) do
+		-- Calculate position in current page (1-6)
+		local pos_in_page = ((i - 1) % 6) + 1
+		
+		-- Create new page if needed
+		if pos_in_page == 1 and i > 1 then
+			droid.cooklist_page_items[page_num] = page_data
+			page_num = page_num + 1
+			page_data = {}
+		end
+		
+		-- Store item at its position in the page
+		page_data[pos_in_page] = item
+	end
+	
+	-- Store the last page if it has items
+	if next(page_data) ~= nil then
+		droid.cooklist_page_items[page_num] = page_data
+	end
+	
+	lf("cooker_inventory", "Initialized cooklist_page_items with " .. #item_list .. " items across " .. page_num .. " pages")
 end
 
 -- Handle craftable logic for generic_cooker
@@ -523,6 +685,227 @@ function maidroid.handle_generic_cooker_tab(self, form)
 							   cooklist_total_pages, cooklist_current_page)
 	return form
 end
+
+-- Handle cooker receive fields
+maidroid.handle_cooker_receive_field = function(droid, player, player_name, fields)
+	if fields.cooklist_next then
+		local current_page = droid.cooklist_page or 1
+		local items_per_page = 6
+		local cooklist_data = {}
+		if maidroid.cores and maidroid.cores.generic_cooker then
+			local cooker_items = dofile(maidroid.modpath .. "/cores/cooker_items.lua")
+			cooklist_data = cooker_items.all_farming_outputs or {}
+		end
+		local total_pages = math.ceil(#cooklist_data / items_per_page)
+		
+		if current_page < total_pages then
+			droid.cooklist_page = current_page + 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	if fields.cooklist_prev then
+		-- Go to previous page
+		local current_page = droid.cooklist_page or 1
+		if current_page > 1 then
+			droid.cooklist_page = current_page - 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	if fields.cookable_prev then
+		-- Go to previous page
+		local current_page = droid.cookable_page or 1
+		if current_page > 1 then
+			droid.cookable_page = current_page - 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	if fields.cookable_next then
+		-- Go to next page
+		local current_page = droid.cookable_page or 1
+		local items_per_page = 12
+		local total_pages = math.ceil(#maidroid.all_furnace_inputs / items_per_page)
+		
+		if current_page < total_pages then
+			droid.cookable_page = current_page + 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Reset desirable and reinitialize craftable
+	if fields.reset_desirable then
+		maidroid.reset_desirable_and_craftable(droid)
+		
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Reset cooklist and reinitialize cookable
+	if fields.reset_cooklist then
+		maidroid.reset_cooklist_and_cookable(droid)
+		
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, minetest.get_player_by_name(player_name), current_tab))
+		return true
+	end
+	
+	-- Go to next desirable page
+	if fields.desirable_next then
+		-- Go to next page
+		local current_page = droid.desirable_page or 1
+		local desirable_outputs = {}
+		
+		-- Build complete list from all pages using helper function
+		if type(droid.desirable_page_items) == "table" then
+			desirable_outputs = maidroid.build_complete_desirable_list(droid)
+		elseif type(droid.desired_craft_outputs) == "table" then
+			-- Fallback to regular desired outputs if page tracking not set
+			desirable_outputs = droid.desired_craft_outputs
+		end
+		
+		if type(desirable_outputs) ~= "table" or #desirable_outputs == 0 then
+			desirable_outputs = {}
+		end
+		
+		local items_per_page = 6
+		-- Always show at least 6 pages when there are desirable items
+		local total_pages = math.max(6, math.ceil(#desirable_outputs / items_per_page))
+		
+		if current_page < total_pages then
+			droid.desirable_page = current_page + 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Go to previous desirable page
+	if fields.desirable_prev then
+		-- Go to previous page
+		local current_page = droid.desirable_page or 1
+		if current_page > 1 then
+			droid.desirable_page = current_page - 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Go to previous craftable page
+	if fields.craftable_prev then
+		-- Go to previous page
+		local current_page = droid.craftable_page or 1
+		if current_page > 1 then
+			droid.craftable_page = current_page - 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Go to next craftable page
+	if fields.craftable_next then
+		-- Go to next page
+		local current_page = droid.craftable_page or 1
+		local craftable_outputs = {}
+		if maidroid.cores.generic_cooker and maidroid.cores.generic_cooker.get_craftable_outputs then
+			craftable_outputs = maidroid.cores.generic_cooker.get_craftable_outputs() or {}
+		end
+		if type(craftable_outputs) ~= "table" or #craftable_outputs == 0 then
+			craftable_outputs = maidroid.init_craftable_outputs
+		end
+		
+		local items_per_page = 12
+		local total_pages = math.ceil(#craftable_outputs / items_per_page)
+		
+		if current_page < total_pages then
+			droid.craftable_page = current_page + 1
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Toggle cooker functionality
+	if fields.toggle_cooker then
+		-- Toggle cooker functionality
+		if droid.pause then
+			droid.pause = false
+			if droid.core and droid.core.on_resume then
+				droid.core.on_resume(droid)
+			end
+			minetest.chat_send_player(player_name, "Cooker resumed")
+		else
+			droid.pause = true
+			if droid.core and droid.core.on_pause then
+				droid.core.on_pause(droid)
+			end
+			minetest.chat_send_player(player_name, "Cooker paused")
+		end
+		-- Refresh the formspec
+		local current_tab = droid.current_tab or 1
+		minetest.show_formspec(player_name, "maidroid:gui",
+			maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	if fields.view_metrics then
+		-- Show metrics in chat
+		if maidroid.get_chest_taken_metrics then
+			local chest_metrics = maidroid.get_chest_taken_metrics()
+			local output = {"Cooker Metrics:"}
+			
+			if next(chest_metrics) == nil then
+				output[#output + 1] = "No items taken from chests yet."
+			else
+				for item_name, count in pairs(chest_metrics) do
+					output[#output + 1] = string.format("%s: %d", item_name, count)
+				end
+			end
+			
+			for _, line in ipairs(output) do
+				minetest.chat_send_player(player_name, line)
+			end
+		else
+			minetest.chat_send_player(player_name, "Metrics function not available")
+		end
+		return true
+	end
+	
+	return false
+end
+
 
 -- Export functions to maidroid namespace
 maidroid.create_cooker_events = create_cooker_events
