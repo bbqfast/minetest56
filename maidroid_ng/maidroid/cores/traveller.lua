@@ -494,33 +494,6 @@ local function check_distance_from_activation(self)
 end
 
 
--- ,,surrounding
-local function get_standable_pos_around(pos)
-    local offsets = {
-        {x=1,y=0,z=0},
-        {x=-1,y=0,z=0},
-        {x=0,y=0,z=1},
-        {x=0,y=0,z=-1},
-    }
-
-    local candidates = {}
-    
-    for _, off in ipairs(offsets) do
-        local p = vector.add(pos, off)
-
-        local node = minetest.get_node(p)
-        local below = minetest.get_node({x=p.x,y=p.y-1,z=p.z})
-        local above = minetest.get_node({x=p.x,y=p.y+1,z=p.z})
-
-        if not minetest.registered_nodes[node.name].walkable
-        and minetest.registered_nodes[below.name].walkable
-        and not minetest.registered_nodes[above.name].walkable then
-            table.insert(candidates, p)
-        end
-    end
-
-    return candidates
-end
 
 -- Function to get front position or random standable position around
 -- Takes a pos, a front pos, if front pos is nil, call get_standable_pos_around, return one of the list
@@ -530,7 +503,7 @@ local function get_front_or_around(pos, front_pos)
     if front_pos then
         return front_pos
     else
-        local candidates = get_standable_pos_around(pos)
+        local candidates = maidroid.get_standable_pos_around(pos)
         if #candidates > 0 then
             local random_index = math.random(#candidates)
             return candidates[random_index]
@@ -540,45 +513,6 @@ local function get_front_or_around(pos, front_pos)
     end
 end
 
--- Function to get the shortest path by checking multiple standable positions around target
--- ,,shortest_path
-local function get_shortest_path(target_pos, player_pos)
-    local shortest_path = nil
-    local shortest_length = math.huge
-    local shortest_destination = nil
-    
-    lf("shortest_path", "Starting get_shortest_path: target=" .. minetest.pos_to_string(target_pos) .. " player=" .. minetest.pos_to_string(player_pos))
-    
-    -- Get standable positions around target
-    local standable_candidates = get_standable_pos_around(target_pos)
-    
-    -- Find path to each standable candidate and return the shortest
-    for i, pos in ipairs(standable_candidates) do
-        lf("shortest_path", "Checking path to position " .. i .. ": " .. minetest.pos_to_string(pos))
-        local path = minetest.find_path(player_pos, pos, 8, 1, 1, "A*")
-        if path then
-            lf("shortest_path", "Path found with " .. #path .. " nodes")
-            if #path < shortest_length then
-                shortest_path = path
-                shortest_length = #path
-                shortest_destination = pos
-                lf("shortest_path", "New shortest path found: " .. shortest_length .. " nodes to " .. minetest.pos_to_string(pos))
-            else
-                lf("shortest_path", "Path longer than current shortest (" .. #path .. " vs " .. shortest_length .. ")")
-            end
-        else
-            lf("shortest_path", "No path found to position " .. i)
-        end
-    end
-    
-    if shortest_path then
-        lf("shortest_path", "Returning shortest path with " .. #shortest_path .. " nodes to destination " .. minetest.pos_to_string(shortest_destination))
-    else
-        lf("shortest_path", "No valid path found, returning nil")
-    end
-    
-    return shortest_path, shortest_destination
-end
 
 
 -- Function to find interesting destinations
@@ -1762,7 +1696,7 @@ local function find_and_use_refrigerator(self)
 
     	-- Find shortest path to refrigerator using standable positions
 	lf("traveller:find_and_use_refrigerator", "Finding shortest path to refrigerator from " .. minetest.pos_to_string(pos) .. " to " .. minetest.pos_to_string(refrigerator_pos))
-	local path, target_pos = get_shortest_path(refrigerator_pos, pos)
+	local path, target_pos = maidroid.get_shortest_path(refrigerator_pos, pos)
 	
 	if path ~= nil then
 		lf("traveller", "Shortest path found to refrigerator with " .. #path .. " nodes to position " .. minetest.pos_to_string(target_pos))
@@ -1839,7 +1773,7 @@ local function find_and_use_bookshelf(self)
 	lf("traveller", "Finding path to bookshelf from " .. minetest.pos_to_string(pos) .. " to " .. minetest.pos_to_string(bookshelf_pos))
 	lf("traveller:find_and_use_bookshelf", "Using A* pathfinding with parameters: 8, 1, 1")
 	-- local path = minetest.find_path(pos, target_pos, 8, 1, 1, "A*")
-	local path, actual_destination = get_shortest_path(bookshelf_pos, pos)
+	local path, actual_destination = maidroid.get_shortest_path(bookshelf_pos, pos)
 
 	if path ~= nil then
         self._bookshelf_front = actual_destination
