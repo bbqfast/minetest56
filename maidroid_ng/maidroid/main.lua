@@ -66,6 +66,11 @@ maidroid.get_standable_pos_around = function(pos)
         end
     end
 
+    -- Log all candidates positions
+    for i, pos in ipairs(candidates) do
+        lf("get_standable_pos_around", "Candidate " .. i .. ": " .. minetest.pos_to_string(pos))
+    end
+
     return candidates
 end
 
@@ -162,12 +167,13 @@ maidroid.get_staticdata = function(self, captured)
 	-- dump final data with inventory included
     mydump("get_staticdata", "5====================== get_staticdata_final_with_inventory", data)
 
-	-- if not captured then
-    data.home = self.home
-    -- Save activation position for generic_cooker core to retain last spawned position
-    if self._activation_pos then
-        data.activation_pos = self._activation_pos
+	if not captured then
+        data.home = self.home
+        if self._activation_pos then
+            data.activation_pos = self._activation_pos
+        end
     end
+    -- Save activation position for generic_cooker core to retain last spawned position
     
     if self.cooklist then
         data.cooklist = self.cooklist
@@ -188,6 +194,10 @@ maidroid.get_staticdata = function(self, captured)
     -- Save mow only mode
     if self._mow_only ~= nil then
         data._mow_only = self._mow_only
+    end
+
+    if self._move_radius ~= nil then
+        data._move_radius = self._move_radius
     end
 	-- end
 
@@ -423,8 +433,8 @@ function maidroid.check_activation_position_and_boundary(self)
         end
 
 
-		if dim_mode == "radius" and distance > max_distance then
-			lf("farming", "Too far from activation (" .. string.format("%.1f", distance) .. " > " .. max_distance .. "), teleporting back")
+		if dim_mode == "radius" and distance > self._move_radius then
+			lf("farming", "Too far from activation (" .. string.format("%.1f", distance) .. " > " .. self._move_radius .. "), teleporting back")
 			self.object:set_pos(self._activation_pos)
             return
 		end

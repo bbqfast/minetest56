@@ -1636,14 +1636,17 @@ function maidroid.get_formspec(self, player, tab)
 	if tab == 3 and owns then -- control tab
 		form = form .. enligthen_tool(self)
 			.. "label[3,0.5;" .. S("Maidroid Controls") .. "]"
-			.. "label[3,1.5;" .. S("Farming Dimension") .. "]"
-			.. "field[3,2.0;1,0.8;farming_length;;" .. (self.farming_length or "5") .. "]"
-			.. "label[4.1,1.9;" .. S("Length") .. "]"
-			.. "field[5,2.0;1,0.8;farming_width;;" .. (self.farming_width or "5") .. "]"
-			.. "label[6.1,1.9;" .. S("Width") .. "]"
-			.. "button[7,1.7;1.5,0.8;set_farming_dim;" .. S("Set") .. "]"
+			.. "label[3,1.0;" .. S("Length") .. "]"
+			.. "field[4.5,1.0;1,0.8;farming_length;;" .. (self.farming_length or "5") .. "]"
+			.. "label[6.0,1.0;" .. S("Width") .. "]"
+			.. "field[7.0,1.0;1,0.8;farming_width;;" .. (self.farming_width or "5") .. "]"
+			.. "button[8.5,0.7;1.5,0.8;set_farming_dim;" .. S("Set") .. "]"
+			.. "label[3,1.5;" .. S("Radius") .. "]"
+			.. "field[4.5,1.5;1,0.8;move_radius;;" .. (self._move_radius or "10") .. "]"
+			.. "button[6.0,1.2;1.5,0.8;set_move_radius;" .. S("Set") .. "]"
+			.. "label[3,2.0;" .. S("Farming Dimension") .. "]"
 			.. "label[3,2.5;" .. S("Dimension Mode") .. "]"
-			.. "dropdown[3,2.9;3,0.8;dim_mode;radius,rectangle;none;" .. dimode_index .. "]"
+			.. "dropdown[3,2.9;3,0.8;dim_mode;radius,rectangle,none;" .. dimode_index .. "]"
 			.. "label[7,2.5;" .. S("Low Fence Mode") .. "]"
 			.. "checkbox[7,2.9;low_fence_mode;" .. S("Enable") .. ";" .. tostring(self._use_low_fence == true) .. "]"
 		lf("DEBUG api:get_formspec", "Low fence mode state: " .. tostring(self._use_low_fence) .. " (checkbox: " .. tostring(self._use_low_fence == true) .. ")")
@@ -1814,7 +1817,12 @@ local function on_activate(self, staticdata)
 		if data.cooklist ~= nil then
 			self.cooklist = data.cooklist
 			lf("api", "Loaded saved cooklist outputs: " .. tostring(self.desired_craft_outputs))
-		end        
+		end
+
+        if data._move_radius ~= nil then
+            self._move_radius = data._move_radius
+            lf("api", "Loaded saved move radius: " .. tostring(self._move_radius))
+        end
 	end
 
 	self.object:set_nametag_attributes({ text = self.nametag, color = { a=255, r=96, g=224, b=96 }})
@@ -2510,9 +2518,45 @@ end
 -- Handle control receive fields
 function maidroid.handle_control_receive_fields(droid, player, player_name, fields)
     lf("DEBUG api:handle_control_receive_fields", "====================== function maidroid.handle_control_receive_fields")
-    	lf("DEBUG api:handle_control_receive_fields", "Received fields: " .. tostring(fields.set_farming_dim) .. ", " .. tostring(fields.dim_mode) .. ", " .. tostring(fields.farming_length) .. ", " .. tostring(fields.farming_width) .. ", " .. tostring(fields.low_fence_mode))
-	if not (fields.set_farming_dim or fields.dim_mode or (fields.farming_length and fields.key_enter_field == "farming_length") or (fields.farming_width and fields.key_enter_field == "farming_width") or fields.low_fence_mode ~= nil) then
+    	lf("DEBUG api:handle_control_receive_fields", "Received fields: " .. tostring(fields.set_farming_dim) .. ", " .. tostring(fields.dim_mode) .. ", " .. tostring(fields.farming_length) .. ", " .. tostring(fields.farming_width) .. ", " .. tostring(fields.set_move_radius) .. ", " .. tostring(fields.move_radius) .. ", " .. tostring(fields.low_fence_mode))
+	if not (fields.set_farming_dim or fields.dim_mode or (fields.farming_length and fields.key_enter_field == "farming_length") or (fields.farming_width and fields.key_enter_field == "farming_width") or fields.set_move_radius or (fields.move_radius and fields.key_enter_field == "move_radius") or fields.low_fence_mode ~= nil) then
 		return false
+	end
+	
+	-- Handle Set button click for move radius
+	if fields.set_move_radius then
+		local radius = tonumber(fields.move_radius)
+		
+		if radius and radius > 0 and radius <= 100 then
+			droid._move_radius = radius
+			lf("DEBUG api:handle_control_receive_fields", "Move radius set to: " .. radius)
+			minetest.chat_send_player(player_name, "Move radius set to " .. radius)
+		else
+			minetest.chat_send_player(player_name, "Invalid radius. Please enter a number between 1 and 100.")
+		end
+		
+		-- Refresh the formspec to show updated values
+		local current_tab = droid.current_tab or 3 -- Control tab
+		minetest.show_formspec(player_name, "maidroid:gui", maidroid.get_formspec(droid, player, current_tab))
+		return true
+	end
+	
+	-- Handle enter key in move_radius field
+	if fields.move_radius and fields.key_enter_field == "move_radius" then
+		local radius = tonumber(fields.move_radius)
+		
+		if radius and radius > 0 and radius <= 100 then
+			droid._move_radius = radius
+			lf("DEBUG api:handle_control_receive_fields", "Move radius set to: " .. radius)
+			minetest.chat_send_player(player_name, "Move radius set to " .. radius)
+		else
+			minetest.chat_send_player(player_name, "Invalid radius. Please enter a number between 1 and 100.")
+		end
+		
+		-- Refresh the formspec to show updated values
+		local current_tab = droid.current_tab or 3 -- Control tab
+		minetest.show_formspec(player_name, "maidroid:gui", maidroid.get_formspec(droid, player, current_tab))
+		return true
 	end
 	
 	-- Handle Set button click first (takes priority over dropdown)

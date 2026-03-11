@@ -163,7 +163,7 @@ local function place_destination_marker(destination)
 	
 	-- If destination is on walkable nodes, place marker above
 	if dest_node.name ~= "air" then
-		place_pos = { x = destination.x, y = destination.y + 1, z = destination.z }
+		place_pos = { x = destination.x, y = destination.y + 2, z = destination.z }
 	else
 		-- If destination is in air, place at destination level
 		place_pos = { x = destination.x, y = destination.y, z = destination.z }

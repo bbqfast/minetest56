@@ -377,6 +377,7 @@ local function try_get_item_from_nearby_chest(droid, pos, take_items)
 		return false
 	end
 
+    droid._chest_pos = chest_pos
 	-- local distance = vector.distance(pos, chest_pos)
 	-- if distance <= chest_reach_dist then
 	-- 	-- Already close enough: perform a short ACT with mine animation while taking from chest
@@ -387,16 +388,22 @@ local function try_get_item_from_nearby_chest(droid, pos, take_items)
 	-- 	to_action(droid)
 	local target = vector.add(chest_pos, {x=0, y=1, z=0})
     local path = minetest.find_path(pos, target, dist + 1, 2, 2, "A*_noprefetch")
+
+    local path, target_pos = maidroid.get_shortest_path(chest_pos, pos)
+
 	if not path then
         lf("generic_cooker", "try_get_item_from_nearby_chest: no path found")
 		return false
 	end
 
-	droid._generic_cooker_target = GenericCookerTarget.new(chest_pos, nil, nil, nil)
+    droid._chest_front = target_pos
+
+	-- droid._generic_cooker_target = GenericCookerTarget.new(chest_pos, nil, nil, nil)
 	-- Show bucket while walking to chest, similar to farming dump logic
 	droid:set_tool("bucket:bucket_empty")
     lf("generic_cooker", "try_get_item_from_nearby_chest: path found")
-	maidroid.cores.path.to_follow_path(droid, path, target, to_action, "generic_cooker_take_item")
+	-- maidroid.cores.path.to_follow_path(droid, path, target, to_action, "generic_cooker_take_item")
+	maidroid.cores.path.to_follow_path(droid, path, target_pos, to_action, "generic_cooker_take_item")
 	return true
 end
 
@@ -1037,18 +1044,19 @@ act = function(droid, dtime)
 
 	if droid.action == "generic_cooker_take_item" then
         lf("generic_cooker:act", "generic_cooker_take_item: " .. minetest.pos_to_string(droid:get_pos()))
-		local target = droid._generic_cooker_target
-		if target and target.pos then
+		-- local target = droid._generic_cooker_target
+		-- if target and target.pos then
 
 			take_item_from_chest(
 				droid,
-				target.pos,
+				-- target.pos,
+				droid._chest_pos,
 				get_combined_take_items2(droid, all_take_items, droid.cooklist)
 			)
-        else
-            lf("generic_cooker:act", "generic_cooker_take_item: no target")
-		end
-		droid._generic_cooker_target = nil
+        -- else
+        --     lf("generic_cooker:act", "generic_cooker_take_item: no target")
+		-- end
+		-- droid._generic_cooker_target = nil
 	elseif droid.action == "generic_cooker_feed_get" then
         lf("generic_cooker:act", "generic_cooker_feed_get: " .. minetest.pos_to_string(droid:get_pos()))
 		local target = droid._furnace_target
@@ -1099,7 +1107,7 @@ task = function(droid)
 	-- : randomly pick one of four actions, with choice 1 being twice as likely as others
 	-- Use math.random(4): values 1 and 2 map to choice 1, values 3 and 4 map to choices 2, 3, and 4
 	local choice = math.random(3)
-    -- choice = 5
+    choice = 3
 
 	if choice == 1 then
 		lf("DEBUG generic_cooker:task", "CHOICE=1: try_feed_get_from_furnace__generic for ")
@@ -1236,7 +1244,21 @@ on_start = function(droid)
     -- end
     
     -- tests()
-    droid._use_low_fence = true
+	-- Initialize low fence detection for farming core (only if not already set)
+	if droid._use_low_fence == nil then
+		droid._use_low_fence = true
+	end
+	if droid._is_bounded == nil then
+		droid._is_bounded = true
+	end
+	if droid._mow_only == nil then
+		droid._mow_only = true
+	end
+
+    if droid._move_radius == nil then
+        droid._move_radius = 5
+    end
+    
     lf("generic_cooker", "------------------------------------------------on_start------------------------------------------------")
     
     -- Store activation position if not already set (retain last spawned position)

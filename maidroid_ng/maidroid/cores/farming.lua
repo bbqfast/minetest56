@@ -692,6 +692,10 @@ on_start = function(self)
 	if self._mow_only == nil then
 		self._mow_only = true
 	end
+
+    if self._move_radius == nil then
+        self._move_radius = 5
+    end
 	
 	-- Initialize farming dimension mode (default to radius)
 	self.farming_dim_mode = self.farming_dim_mode or "radius"
