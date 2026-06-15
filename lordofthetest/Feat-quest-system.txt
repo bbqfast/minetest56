@@ -1,0 +1,25 @@
+
+Quest system includes
+
+
+feature:
+- quest tracking per player
+- quest log
+- quest completion rewards
+- quest giver NPCs
+- quest objectives
+- quest conditions
+- quest rewards
+- quest unlocks
+- quest tracking per player
+
+
+- a per player quest 
+- start with a rescue quest
+- quest is not given by only one NPC
+
+
+
+New entities
+- LTs NPC that can be recued
+- a recue bag

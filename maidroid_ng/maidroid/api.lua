@@ -23,6 +23,9 @@ dofile(maidroid.modpath .. "/cores/traveller_ui.lua")
 -- Initialize traveller inventories table
 maidroid.traveller_inventories = {}
 
+-- Global variable to store active maidroid nametag when form is opened
+maidroid.active_maidroid_name = ""
+
 -- Default craftable outputs for generic_cooker
 maidroid.init_craftable_outputs = {
     "farming:flour", "farming:flour_multigrain", "farming:bread_slice", "farming:toast_sandwich", "farming:garlic_clove", "farming:garlic", "farming:popcorn", "farming:cornstarch",
@@ -1562,6 +1565,8 @@ function maidroid.get_formspec(self, player, tab)
 		.. "label[0,6.6;" .. S("Health") .. "]"
 		.. "label[0,0;" .. S("this maidroid is ") .. "]"
 		.. "label[0.5,0.75;" .. self.core.description .. "]"
+		.. "label[0,1.5;" .. S("Name") .. "]"
+		.. "label[0.5,2.25;" .. (self.nametag or "") .. "]"
 	
     	-- Adjust tabheader position for cooker tab
 	local tabheader_pos = is_cooker_tab and "tabheader[0,0;tabheader;" or "tabheader[0,0;tabheader;"
@@ -1703,6 +1708,16 @@ function maidroid.get_formspec(self, player, tab)
 	if owns and self.core.name == "traveller" then
 		tab_max = tab_max + 1
 		if tab == tab_max then
+			local form = "size[14,7.4]"
+				.. "tabheader[0,0;tabheader;" .. S("Inventory")
+				.. ( owns and "," .. S("Flush") or "")
+				.. ( owns and "," .. S("Control") or "")
+				.. ( self.core.can_sell and "," .. S("Shop") or "" )
+				.. ( (owns and self.core.doc) and "," .. S("Doc") or "" )
+				.. ( (self.core.name == "generic_cooker" and owns) and "," .. S("Cooker") or "" )
+				.. ( (self.core.name == "traveller" and owns) and "," .. S("Traveller") or "" )
+				.. ( (self.core.name == "farming" and owns) and "," .. S("Farming") or "" )
+				.. ";" .. tab .. ";false;true]"
 			return maidroid.handle_traveller_tab(self, form)
 		end
 	end
@@ -1960,6 +1975,7 @@ local function on_rightclick(self, clicker)
 		maidroid.get_formspec(self, clicker, 1)
 	)
 	maidroid_buf[clicker:get_player_name()] = { self = self }
+	maidroid.active_maidroid_name = self.nametag or ""
 end
 
 local function on_punch(self, puncher, _, tool_capabilities, _, damage)

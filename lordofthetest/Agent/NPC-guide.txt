@@ -1,0 +1,45 @@
+1.
+Instructions:
+
+
+1a. read this project, and identify all the NPC related code.
+
+especially Ltee related NPCs
+
+for example:
+LT angel
+
+list:
+source file
+function 
+event associeted with it
+if it has quotes, show where the quots are form
+if it has shop, show where the stop items are defined
+
+DO NOT WRITE ABOVE THIS LINE
+update your findings below files
+
+
+output reports are:
+Agent\NPC_Analysis_Report.md
+Agent\NPC_Scanning_Guide.md
+Agent\NPC_Spawn_Setup_Guide.md
+Agent\NPC_Preview_Generation_Guide.md
+--------------------------------------
+
+NPC_Spawn_Setup_Guide.md
+NPC_Scanning_Guide.md
+NPC_Analysis_Report.md
+
+
+
+2a.
+you forgot this :
+C:\Minetest\v5.6\games\lordofthetest\mods\basic_snacks\lt_people.lua
+
+add this to your analysis and explain how you miss this
+
+
+2b.
+investigate lt people, figure out how it creates preview in inventory, 
+update guide and provide generic instruction how to create preview for any NPC

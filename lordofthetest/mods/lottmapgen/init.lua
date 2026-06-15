@@ -425,6 +425,9 @@ minetest.register_on_generated(function(minp, maxp, seed)
 										data[vi] = c_snowblock
 										if math.random(PLANT15) == 12 then
 											myenqueue("LT Shop Santa", {x=x, y=y, z=z})
+										-- elseif math.random(PLANT10) == 5 then
+										elseif math.random(PLANT12) == 5 then
+											myenqueue("Birthday House", {x=x, y=y, z=z})
 										end
 
 									elseif biome == 3 then
@@ -437,6 +440,8 @@ minetest.register_on_generated(function(minp, maxp, seed)
 											lottmapgen_pinetree(x, y, z, area, data)
 										elseif math.random(TREE3) == 4 then
 											lottmapgen_firtree(x, y, z, area, data)
+										elseif math.random(PLANT10) == 5 then
+											myenqueue("Birthday House", {x=x, y=y, z=z})
 										end
 									elseif biome == 4 then
 										if math.random(TREE5) == 2 then

@@ -294,10 +294,19 @@ local function handle_rewardable_logic(self)
 				local player_name = callback_data.player:get_player_name()
 				
 				-- Only refresh if the maidroid GUI is currently active (check maidroid_buf)
+				-- and the nametag matches the active maidroid name
 				if maidroid.maidroid_buf and maidroid.maidroid_buf[player_name] then
-					local current_tab = callback_data.droid.current_tab or 3 -- Traveller tab
-					minetest.show_formspec(player_name, "maidroid:gui", maidroid.get_formspec(callback_data.droid, callback_data.player, current_tab))
-					lf("DEBUG traveller_ui", "Refreshed active UI for player: " .. player_name)
+					-- Check if nametag matches active nametag
+					local droid_nametag = callback_data.droid.nametag or ""
+					local active_nametag = maidroid.active_maidroid_name or ""
+					
+					if droid_nametag == active_nametag then
+						local current_tab = callback_data.droid.current_tab or 3 -- Traveller tab
+						minetest.show_formspec(player_name, "maidroid:gui", maidroid.get_formspec(callback_data.droid, callback_data.player, current_tab))
+						lf("DEBUG traveller_ui", "Refreshed active UI for player: " .. player_name .. " (nametag match: " .. droid_nametag .. ")")
+					else
+						lf("DEBUG traveller_ui", "Nametag mismatch - droid: " .. droid_nametag .. ", active: " .. active_nametag .. ", skipping refresh")
+					end
 				else
 					lf("DEBUG traveller_ui", "UI not active for player: " .. player_name .. ", skipping refresh")
 				end
@@ -362,9 +371,10 @@ local function generate_traveller_form(self, form, traveller_inv, traveller_inv_
 		return ""
 	end
 	
-	form = form .. enligthen_tool(self)
+	-- form = form .. enligthen_tool(self)
 		
 	-- Rewardable section
+	-- form = form
 	form = form
 		.. "label[0.5,0;" .. S("Rewardable Items") .. "]"
 		.. "list[detached:" .. traveller_inv_id .. ";rewardable;0.5,0.5;6,1;]"

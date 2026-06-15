@@ -1,0 +1,64 @@
+
+
+1.
+Create a birthdayer1 NPC with following features:
+
+
+mods\lottmobs\birthdayer.lua
+
+This birthdayer1 NPC is a stationary NPC that gives birthday HUD to players who get close to it.
+THis will be used in a new .we file that contains the birthday building
+
+- race should be ltee
+- the NPC should be stationary
+- NPC should face the direction of player instead of spinning around
+
+
+- give HUD when player get close to it
+- HUD contains
+" Happy birthday! "
+" Happy birthday to Janice! "
+- create a spawner node for this NPC that i can place in birthday building
+
+
+
+2. 
+the NPC should be stationary
+
+
+
+3. 
+I've created a birthday building 
+in 
+C:\Minetest\v5.6\games\lordofthetest\mods\lottmapgen\schems\birthday_house1.we
+
+update lottmapgen mod to reflect this change, 
+make it generate in snow biome, give it a higher chance so i can see it 
+
+COMPLETED:
+- Files changed:
+  - c:\Minetest\v5.6\games\lordofthetest\mods\lottmapgen\schematics.lua
+  - c:\Minetest\v5.6\games\lordofthetest\mods\lottmapgen\init.lua
+- Summary: Added Birthday House to building list and configured it to spawn in snow biomes (biome 2 & 3) with 1/200 chance for higher visibility
+
+RARITY TUNING:
+- Current setting: math.random(PLANT10) == 5 (1/200 chance)
+- To make MORE frequent: Change to lower PLANT number
+  * PLANT5 (100) = 1/20 chance for testing
+  * PLANT3 (10) = 1/2 chance for very frequent testing
+- To make LESS frequent: Change to higher PLANT number or higher comparison
+  * PLANT12 (5000) = 1/1000 chance
+  * Keep PLANT10 but change == 10 for 1/100 chance
+- Location in init.lua: Lines ~428 and ~440 in biome 2 and 3 sections 
+
+
+4.
+the birthdayer1 should face the direction of player instead of spinning around
+
+
+5.
+- Added birthday music playback when player gets close to birthdayer NPC
+- Plays "Happy_Birthday_MIDI.ogg" file with 30-second cooldown
+- Increased HUD text size and made it bold for better visibility
+- Added lottblocks dependency to access musical sounds
+- Music plays within 3-block radius with 15-block hear distance

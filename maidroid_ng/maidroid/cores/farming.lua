@@ -266,6 +266,13 @@ maybe_dump_to_nearby_chest = function(self, inv, pos)
 		return false
 	end
 
+    local path, target_pos = maidroid.get_shortest_path(chest_pos, pos)
+
+	if not path then
+        lf("generic_cooker", "try_get_item_from_nearby_chest: no path found")
+		return false
+	end    
+
 	-- Respect chest ownership like the normal dumping logic
 	local meta = minetest.get_meta(chest_pos)
 	local owner = meta:get_string("owner")
@@ -275,7 +282,8 @@ maybe_dump_to_nearby_chest = function(self, inv, pos)
 
 	-- We want to stand on top of the chest so dump_inventory_to_chest
 	-- can see it as the node below the maidroid.
-	local dest = vector.add(chest_pos, { x = 0, y = 1, z = 0 })
+	-- local dest = vector.add(chest_pos, { x = 0, y = 1, z = 0 })
+	local dest = target_pos
 
 	-- Remember where we started from so we can teleport back after dumping.
 	self._dump_return_pos = vector.round(self:get_pos())
@@ -781,6 +789,9 @@ dump_inventory_to_chest = function(self, pos, inv)
 		local front_pos = self:get_front()
 		local front_node = minetest.get_node(front_pos)
 		-- lf("task", "front node: " .. front_node.name)
+
+
+        
 		local chest_pos
 		if front_node and (front_node.name == "default:chest" or front_node.name == "default:chest_locked") then
 			chest_pos = front_pos

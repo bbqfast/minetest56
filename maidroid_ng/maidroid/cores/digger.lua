@@ -15,6 +15,92 @@ local timers = maidroid.timers
 
 local DIG_BELOW_INTERVAL = 0.5
 
+-- Function to check if maidroid has mining guide in inventory
+local function has_mining_guide(self)
+	lf("digger:has_mining_guide", "Checking if maidroid has mining guide in inventory")
+	
+	-- Get the maidroid's inventory
+	local inv = self:get_inventory()
+	if not inv then
+		lf("digger:has_mining_guide", "Maidroid has no inventory")
+		return false
+	end
+	
+	-- Check if mining guide exists in main inventory
+	local guide_stack = inv:contains_item("main", ItemStack("maidroid:mining_guide"))
+	
+	if guide_stack then
+		lf("digger:has_mining_guide", "Mining guide found in inventory")
+		return true
+	else
+		lf("digger:has_mining_guide", "Mining guide not found in inventory")
+		return false
+	end
+end
+
+-- Function to put guide block in maidroid's inventory
+-- ,,guide2
+local function put_guide_in_inventory(self, pos)
+	lf("digger:put_guide_in_inventory", "Attempting to pick up guide block at " .. minetest.pos_to_string(pos))
+	
+	if not pos then
+		lf("digger:put_guide_in_inventory", "No position provided")
+		return false
+	end
+	
+	-- Teleport maidroid to guide location
+	-- local current_pos = self:get_pos()
+	-- if current_pos and pos then
+    local gpos = self._guide_pos
+    local teleport_pos = {x = gpos.x, y = gpos.y + 1, z = gpos.z} -- Position above the guide block
+    self.object:set_pos(teleport_pos)
+    lf("digger:put_guide_in_inventory", "Teleported to pos: " .. minetest.pos_to_string(teleport_pos))
+	-- end
+	
+	-- Check if position is protected
+	if minetest.is_protected(pos, self.owner) then
+		lf("digger:put_guide_in_inventory", "Position is protected: " .. minetest.pos_to_string(pos))
+		return false
+	end
+	
+	-- Get the node at the position
+	local node = minetest.get_node(pos)
+	if not node then
+		lf("digger:put_guide_in_inventory", "No node found at position: " .. minetest.pos_to_string(pos))
+		return false
+	end
+	
+	-- Check if it's a guide block
+	if node.name ~= "maidroid:mining_guide" then
+		lf("digger:put_guide_in_inventory", "Node is not a guide block: " .. node.name)
+		return false
+	end
+	
+	-- Get the maidroid's inventory
+	local inv = self:get_inventory()
+	if not inv then
+		lf("digger:put_guide_in_inventory", "Maidroid has no inventory")
+		return false
+	end
+	
+	-- Create ItemStack for the guide block
+	local guide_stack = ItemStack("maidroid:mining_guide")
+	
+	-- Try to add to inventory
+	local leftover = inv:add_item("main", guide_stack)
+	
+	if leftover:is_empty() then
+		-- Successfully added, remove the node
+		minetest.remove_node(pos)
+		lf("digger:put_guide_in_inventory", "Successfully picked up guide block and added to inventory")
+		return true
+	else
+		-- Inventory is full
+		lf("digger:put_guide_in_inventory", "Inventory is full, cannot pick up guide block")
+		return false
+	end
+end
+
 -- Core interface functions
 local on_start, on_pause, on_resume, on_stop, on_step, is_tool
 
@@ -241,6 +327,65 @@ local function is_liquid3(node1, node2, node3)
 	return is_liquid(node1) or is_liquid(node2) or is_liquid(node3)
 end
 
+-- Function to find path to mining_guide and walk to it
+-- ,,guide1
+local function find_and_walk_to_mining_guide(self)
+	lf("digger:find_and_walk_to_mining_guide", "Starting mining guide search")
+	local pos = self:get_pos()
+	
+	-- Find mining guide within range
+	local search_range = 50 -- Adjust range as needed
+	lf("digger:find_and_walk_to_mining_guide", "Searching for mining guide within " .. search_range .. " blocks")
+	local mining_guide_pos = minetest.find_node_near(pos, search_range, {"maidroid:mining_guide"})
+	
+	if not mining_guide_pos then
+		lf("digger", "No mining guide found within range")
+		return false
+	end
+	
+    self._guide_pos = mining_guide_pos
+
+	-- Save mining guide position
+	self._mining_guide_pos = mining_guide_pos
+	lf("digger", "Found mining guide at " .. minetest.pos_to_string(mining_guide_pos))
+	lf("digger:find_and_walk_to_mining_guide", "Checking if mining guide location is safe")
+	
+    -- Calculate distance to mining guide
+    local distance = vector.distance(pos, mining_guide_pos)
+    lf("digger:find_and_walk_to_mining_guide", "Distance to mining guide: " .. string.format("%.2f", distance))
+    
+    -- If already close to mining guide, just stand there
+    -- if distance < 3 then
+    --     lf("digger", "Already near mining guide, standing by")
+    --     lf("digger:find_and_walk_to_mining_guide", "Already at destination")
+    --     self.destination = mining_guide_pos
+    --     self.action = "stand_by"
+    --     return to_action(self)
+    -- end    
+
+    	-- Find shortest path to mining guide using standable positions
+	lf("digger:find_and_walk_to_mining_guide", "Finding shortest path to mining guide from " .. minetest.pos_to_string(pos) .. " to " .. minetest.pos_to_string(mining_guide_pos))
+	local path, target_pos = maidroid.get_shortest_path(mining_guide_pos, pos)
+	
+	if path ~= nil then
+		lf("digger", "Shortest path found to mining guide with " .. #path .. " nodes to position " .. minetest.pos_to_string(target_pos))
+		lf("digger:find_and_walk_to_mining_guide", "Path found successfully, setting up movement")
+		self._mining_guide_front = target_pos
+		self:set_yaw({self:get_pos(), target_pos})
+		
+		-- Set up action to stand by when arriving at mining guide
+		lf("digger:find_and_walk_to_mining_guide", "Setting destination and action for mining guide")
+		self.destination = mining_guide_pos
+		self.action = "stand_by"
+		core_path.to_follow_path(self, path, target_pos, to_action, "stand_by")
+		return true
+	else
+		lf("digger", "No path found to mining guide")
+		return false
+	end
+end
+
+-- Function to find first non-solid vertically
 local find_first_non_solid_vertically = function(pos, max_up)
 	if not pos then
 		return nil
@@ -384,11 +529,12 @@ on_start = function(self)
 	self.timers.place_torch = 0
 	self.timers.dig_below = 0
 	self.is_placing = false
+    self.dig_ready = false
 	self:halt()
 	self:set_animation(maidroid.animation.STAND)	
 	self._old_accel = self.object:get_acceleration()
 	self.object:set_acceleration({x = 0, y = -3, z = 0})  -- tweak -3 → -2/-4 as you like
-    self.is_dig_all_dir = true
+    self.is_dig_all_dir = false
 	self.onstep_timer_default = 0.1
 	self._onstep_timer = self.onstep_timer_default
 end
@@ -432,6 +578,8 @@ end
 
 
 to_action = function(self)
+    lf("digger:to_action", "to_action")
+    lf("digger:to_action", "to_action")
 	self.state = maidroid.states.ACT
 	self.timers.action = 0
 	self.timers.walk = 0
@@ -439,6 +587,13 @@ end
 
 -- ,,db,,dig
 local dig_block_in_direction = function(self, direction, except_nodes)
+    
+
+    -- if not self.dig_ready then
+    if not has_mining_guide(self) then
+        return
+    end
+
 	-- lf("digger:dig_block_in_direction", "direction: " .. minetest.pos_to_string(direction))
 	local pos = self:get_pos()
 
@@ -536,6 +691,7 @@ act = function(self, dtime)
 	self.timers.action = 0
 	lf("digger:act", "act: pos=" .. minetest.pos_to_string(vector.round(self:get_pos())) .. " action=" .. tostring(self.action))
 
+    -- self.action = "none"
 	if self.action == "digger_dig_y_neg" then
 		dig_block_in_direction(self, {x = 0, y = -1, z = 0}, except_nodes2)
     elseif self.action == "digger_dig_x_pos" then
@@ -548,6 +704,11 @@ act = function(self, dtime)
 		dig_block_in_direction(self, {x = 0, y = 0, z = 1}, except_nodes1)
     elseif self.action == "digger_all_direction" then
         dig_all_direction(self)
+    elseif self.action == "stand_by" then
+        lf("digger:act", "Standing by at mining guide location")
+        -- error("")
+        put_guide_in_inventory(self, self._guide_pos)
+        -- Just stand still, no action needed
 	end
 
 	self.action = nil
@@ -556,6 +717,16 @@ end
 
 -- ,,task
 task = function(self)
+	-- Add random chance to search for mining guide
+	local choice = math.random(6) -- 1-5 for digging, 6 for mining guide
+	
+	if choice == 6 then
+		lf("digger:task", "CHOICE=6: find_and_walk_to_mining_guide")
+		lf("digger:task", "Calling find_and_walk_to_mining_guide function")
+		find_and_walk_to_mining_guide(self)
+		return
+	end
+	
 	if self.is_dig_all_dir == true then
 		self.action = "digger_all_direction"
 		lf("digger:task", "selected action=" .. tostring(self.action))
@@ -608,6 +779,19 @@ on_step = function(self, dtime, moveresult)
     lf("digger:on_step", "digger step timer=" .. tostring(self._digger_step_timer))
     self._digger_step_timer = 0
 
+    -- Handle PATH state by delegating to path core
+    if self.state == maidroid.states.PATH then
+        lf("digger:on_step", "In PATH state, delegating to path core")
+        maidroid.cores.path.on_step(self, dtime, moveresult)
+        return
+    end
+
+    -- Check if action is stand_by, if yes, take the action then return
+    if self.action == "stand_by" then
+        lf("digger:on_step", "Taking stand_by action")
+        act(self, dtime)
+        return
+    end
 
     local pos = self:get_pos()
 	-- lf("digger:on_step", "Position: " .. (pos and minetest.pos_to_string(pos) or "nil"))

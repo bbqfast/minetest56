@@ -1107,7 +1107,7 @@ task = function(droid)
 	-- : randomly pick one of four actions, with choice 1 being twice as likely as others
 	-- Use math.random(4): values 1 and 2 map to choice 1, values 3 and 4 map to choices 2, 3, and 4
 	local choice = math.random(3)
-    choice = 3
+    -- choice = 3
 
 	if choice == 1 then
 		lf("DEBUG generic_cooker:task", "CHOICE=1: try_feed_get_from_furnace__generic for ")

@@ -178,6 +178,8 @@ Updates:
 - fixed group expansion when taking craftable item from chest
 - fix bug incorrectly populate cook with with hash map
 - cooklist and desirable now save / load coorectly
+- add radius box, fix reset activation pos when spawn from egg
+- use shortest path for chest
 
 
 - refac: move non ui func out of api

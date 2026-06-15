@@ -82,4 +82,58 @@ if maidroid.settings.waffler then
 		groups = { not_in_creative_inventory = 1 },
 	})
 end
+
+-- Static decorative block - non-blocking, non-walking but can be placed and destroyed
+minetest.register_node("maidroid:mining_guide", {
+	description = S("Mining guide"),
+	tiles = {"default_book_written.png"},
+	groups = {cracky = 3, oddly_breakable_by_hand = 3},
+	sounds = default.node_sound_stone_defaults(),
+	
+	-- Node properties - non-blocking for walking but can be placed/destroyed
+	walkable = false,      -- Players can walk through it
+	pointable = true,      -- Can be pointed at for destruction
+	diggable = true,       -- Can be dug/destroyed
+	buildable_to = false,  -- Cannot be replaced by placing another node
+	floodable = false,     -- Not affected by water
+	
+	-- Visual properties
+	drawtype = "normal",
+	visual_scale = 1.0,
+	paramtype = "light",
+	sunlight_propagates = true,
+	
+	-- Interaction callbacks
+	on_construct = function(pos)
+		-- Called when node is placed
+		minetest.log("action", "Mining guide block placed at " .. minetest.pos_to_string(pos))
+	end,
+	
+	on_destruct = function(pos)
+		-- Called when node is destroyed
+		minetest.log("action", "Mining guide block destroyed at " .. minetest.pos_to_string(pos))
+	end,
+	
+	-- Drop behavior
+	drop = "maidroid:mining_guide",
+})
+
+-- Recipe for static block - stone pickaxe and wood
+minetest.register_craft({
+	output = "maidroid:mining_guide 4",
+	recipe = {
+		{"default:stone_pickaxe", "default:wood", "default:stone_pickaxe"},
+		{"default:wood", "default:stone_pickaxe", "default:wood"},
+		{"default:stone_pickaxe", "default:wood", "default:stone_pickaxe"},
+	},
+})
+
+-- Alternative recipe for easier crafting
+minetest.register_craft({
+	output = "maidroid:mining_guide 2",
+	recipe = {
+		{"default:stone_pickaxe"},
+		{"default:wood"},
+	},
+})
 -- vim: ai:noet:ts=4:sw=4:fdm=indent:syntax=lua

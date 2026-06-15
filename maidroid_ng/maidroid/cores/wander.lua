@@ -43,7 +43,7 @@ on_pause = function(self)
 	self:set_animation(maidroid.animation.SIT)
 end
 
-
+-- ,,step
 on_step = function(self, dtime, moveresult, task, criterion, check_inside)
 	-- Walk time over do task or randomly happy jump
 	if self.timers.walk >= self.core.walk_max then

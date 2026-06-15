@@ -428,5 +428,48 @@ minetest.register_alias("lottother:ltee_trader_3_ms_on", "lottother:ltee_trader_
 minetest.register_alias("lottother:ltee_trader_3_ms_off", "lottother:ltee_trader_3_ms")
 minetest.register_alias("lottother:elfms_on", "lottother:elfms")
 minetest.register_alias("lottother:elfms_off", "lottother:elfms")
+-- Birthdayer
+
+minetest.register_node("lottother:birthdayer_ms", {
+	description = "Birthdayer Spawner",
+	drawtype = "nodebox",
+	node_box = thin_plate,	
+	tiles = {"default_glass.png^[colorize:#FFD700:120"}, -- Gold color for birthday theme
+	drop = '',
+	paramtype = "light",
+	sunlight_propagates = true,
+	is_ground_content = false,
+	walkable = false,
+	buildable_to = true,
+	pointable = true,
+	on_construct = function(pos, node)
+		if trader_exists_near(pos, 1.5, "lottmobs:birthdayer1") then
+			return
+		end
+		lf("birthdayer_ms", string.format("at x=%d y=%d z=%d", pos.x, pos.y, pos.z))
+		minetest.add_entity({x = pos.x, y = pos.y+1, z = pos.z}, "lottmobs:birthdayer1")
+	end,
+	groups = {dig_immediate=3},
+})
+
+minetest.register_lbm({
+    name = "lottother:spawn_birthdayer",
+    nodenames = {"lottother:birthdayer_ms"},
+    run_at_every_load = true,
+    action = function(pos, node)
+		if trader_exists_near({x = pos.x, y = pos.y + 1, z = pos.z}, 1.5, "lottmobs:birthdayer1") then
+			return
+		end
+        lf("lottmobs:spawn_birthdayer", ("LBM spawning birthdayer at (%d, %d, %d)"):format(pos.x, pos.y, pos.z))
+        local obj = minetest.add_entity(
+            {x = pos.x, y = pos.y + 1, z = pos.z},
+            "lottmobs:birthdayer1"
+        )
+        if obj then
+            minetest.remove_node(pos)
+        end
+    end,
+})
+
 minetest.register_alias("lottother:mordorms_on", "lottother:mordorms")
 minetest.register_alias("lottother:mordorms_off", "lottother:mordorms")

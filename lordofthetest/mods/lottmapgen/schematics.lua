@@ -35,6 +35,8 @@ local lottmapgen_list = {
 		center = {x=3, y=1, z=5} },
 	["LT Shop Lrg"] =    {build="lteeshop_lrg",   area_owner = "LT villager", area_name = "LT Shop",
 		center = {x=9, y=3, z=15} },
+	["Birthday House"] = {build="birthday_house1", area_owner = "Birthday Celebrant", area_name = "Birthday House",
+		center = {x=3, y=1, z=3} },
 
 }
 

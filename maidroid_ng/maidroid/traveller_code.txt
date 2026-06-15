@@ -1,0 +1,215 @@
+# Call Map for traveller.lua
+# read C:\Minetest\v5.6\mods\maidroid_ng\maidroid\cores\traveller.lua
+# verify the following info is accurate
+
+## External Dependencies
+- `maidroid.translator` (S)
+- `maidroid.lf` (logging framework)
+- `maidroid.timers`
+- `maidroid.cores.wander` (wander_core)
+- `maidroid.cores.path` (core_path)
+- `maidroid.helpers.search_surrounding` (search)
+- `maidroid.sleep` module
+- `homedecor` mod functions
+- `beds` mod
+- `minetest` API functions
+
+## Core Functions Call Hierarchy
+
+### Main Entry Points
+```
+maidroid.register_core("traveller") → {
+  on_start, on_stop, on_resume, on_pause, on_step, act, is_tool, to_wander
+}
+```
+
+### State Management Flow
+```
+on_step(dtime, moveresult)
+├── maidroid.sleep.on_step_sleep_check()
+├── on_step_shower_check()
+├── on_step_toilet_check()
+├── on_step_refrigerator_check()
+├── on_step_bookshelf_check()
+├── check_distance_from_activation()
+├── act() (if ACTION state)
+├── maidroid.cores.path.on_step() (if PATH state)
+└── wander_core.on_step(task) (if not ACT state)
+```
+
+### Task Execution Flow
+```
+task() → random choice (1-5)
+├── choice 1: maidroid.sleep.try_sleep_in_bed()
+├── choice 2: find_and_turn_on_shower()
+├── choice 3: find_and_use_toilet()
+├── choice 4: find_and_use_refrigerator()
+└── choice 5: find_and_use_bookshelf()
+```
+
+### Action Handling Flow
+```
+act(self)
+├── "traveller_sleep": maidroid.sleep.handle_sleep_action()
+├── "turn_on_shower": turn_on_shower_head()
+├── "use_toilet": flush_toilet()
+├── "use_refrigerator": use_refrigerator()
+├── "use_bookshelf": use_bookshelf()
+└── to_wander()
+```
+
+### Pathfinding & Movement
+```
+travel_to_destination() / task_base() / find_and_turn_on_shower() / find_and_use_toilet() / find_and_use_refrigerator() / find_and_use_bookshelf()
+├── is_destination_safe()
+├── get_shortest_path() (enhanced pathfinding)
+│   ├── get_standable_pos_around() (finds valid positions)
+│   ├── minetest.find_path() (A* algorithm for each candidate)
+│   └── select shortest path from candidates
+├── minetest.find_path() (A* algorithm)
+├── core_path.to_follow_path()
+└── to_action()
+```
+
+### Specialized Functions
+
+#### Shower System
+```
+find_and_turn_on_shower()
+├── minetest.find_node_near("homedecor:shower_head")
+├── turn_on_shower_head() (if distance < 2)
+│   ├── homedecor.start_particle_spawner()
+│   ├── teleport_to_shower_position()
+│   ├── add_points() (8 points)
+│   └── minetest.after() (6-second timer callback)
+├── minetest.find_path() (A* algorithm to under_shower_pos)
+├── task_base() (if distance >= 2)
+│   ├── self.shower_head_pos = shower_pos
+│   └── core_path.to_follow_path() (via task_base)
+└── on_step_shower_check() (maintains shower state)
+```
+
+#### Toilet System
+```
+find_and_use_toilet()
+├── minetest.find_node_near("homedecor:toilet", "homedecor:toilet_open")
+├── flush_toilet() (if distance < 2)
+│   ├── teleport_to_toilet_position()
+│   ├── def.on_rightclick() (flush action)
+│   ├── add_points() (5 points)
+│   └── minetest.after() (4-second timer callback)
+├── minetest.find_path() (A* algorithm to above_toilet_pos)
+├── core_path.to_follow_path() (if distance >= 2)
+│   ├── self.destination = above_toilet_pos
+│   └── self.action = "use_toilet"
+└── on_step_toilet_check() (maintains toilet state)
+```
+
+#### Refrigerator System
+```
+find_and_use_refrigerator()
+├── minetest.find_node_near("homedecor:refrigerator_white")
+├── use_refrigerator() (if distance < 3)
+│   ├── teleport_to_refrigerator_position()
+│   ├── refrigerator_inv:get_list("main")
+│   ├── select_random_item() → droid:set_tool(selected_item)
+│   ├── add_points() (10 points)
+│   └── minetest.after() (10-second timer callback)
+├── get_shortest_path() (enhanced positioning, if distance >= 3)
+├── core_path.to_follow_path() (via get_shortest_path result)
+│   ├── self._refrigerator_front = target_pos
+│   ├── self.destination = refrigerator_pos
+│   └── self.action = "use_refrigerator"
+└── on_step_refrigerator_check() (maintains refrigerator state)
+```
+
+#### Bookshelf System
+```
+find_and_use_bookshelf()
+├── minetest.find_node_near("default:bookshelf")
+├── use_bookshelf() (if distance < 1)
+│   ├── teleport_to_bookshelf_position()
+│   ├── bookshelf_inv:get_list("books")
+│   ├── select_random_book() → read_book_stack()
+│   ├── add_points() (7 points)
+│   ├── droid:set_animation(maidroid.animation.MINE)
+│   └── minetest.after() (8-second timer callback)
+├── get_shortest_path() (enhanced positioning, if distance >= 1)
+├── core_path.to_follow_path() (via get_shortest_path result)
+│   ├── self._bookshelf_front = actual_destination
+│   ├── self.destination = actual_destination
+│   └── self.action = "use_bookshelf"
+└── on_step_bookshelf_check() (maintains bookshelf state)
+```
+
+### Point & Reward System
+```
+Point System:
+├── ACTION_POINTS = {toilet=5, fridge=10, shower=8, bookshelf=7}
+├── add_points(action, points) → applies REWARD_MULTIPLIER
+├── get_total_points() → returns accumulated points
+├── REWARD_CONFIG = {coal_lump=10, iron_lump=30, silver_lump=60, gold_lump=100}
+└── check_and_award_rewards() → automatic reward distribution (60s interval)
+
+Reward Distribution:
+├── calculate rewards_earned = floor(points_available / reward_cost)
+├── award_reward_items() → adds to maidroid inventory
+└── update _reward_points_used tracking
+```
+
+### Metrics System
+```
+Per-Maidroid Metrics:
+├── _action_taken_metrics: {shower_used, toilet_used, refrigerator_used, bookshelf_used, books_read}
+├── _food_eaten_metrics: {food_item_name: count}
+├── _reward_accumulated_points: total points earned
+└── log_traveller_metrics(self) → logs every 35 seconds
+
+Metrics Categories:
+├── action_metrics: action counts and types
+├── food_metrics: individual food items consumed
+└── points_metrics: accumulated points per maidroid
+```
+
+### Utility Functions
+- `check_distance_from_activation()`: Teleports back if too far (>5 blocks)
+- `is_destination_safe()`: Checks protection and lava hazards
+- `find_interesting_destinations()`: Finds chests, beds, signs
+- `get_shortest_path()`: Enhanced pathfinding using standable positions
+- `get_standable_pos_around()`: Finds valid standable positions around a target
+- `get_refrigerator_front()` / `get_bookshelf_front()`: Orientation-based positioning
+- `yaw_to_direction()`: Converts yaw to compass direction
+- `teleport_to_*_position()`: Positioning helpers for each fixture
+- `front_check()`: Debug position visualization with markers
+
+### State Transitions
+```
+to_wander() ←→ to_action() ←→ act()
+     ↓              ↓           ↓
+WANDER state    ACTION state  Action execution
+```
+
+### Configuration Constants
+- `TRAVEL_RANGE = 50`: Maximum travel distance
+- `REST_INTERVAL = 5`: Seconds between travels
+- `MAX_CARRY_WEIGHT = 100`: Maximum item weight
+- `MAX_DISTANCE_FROM_ACTIVATION = 5`: Teleport back threshold
+- `REWARD_CHECK_INTERVAL = 60`: Seconds between reward checks
+- `metrics_log_interval = 35`: Seconds between metrics logging
+
+### Point System Configuration
+- `ACTION_POINTS`: Points awarded for each action
+  - toilet = 5 points
+  - fridge = 10 points
+  - shower = 8 points
+  - bookshelf = 7 points
+
+### Reward Configuration
+- `REWARD_MULTIPLIER = 1`: Multiplier for point calculations
+- `REWARD_CONFIG.rewards`: Point costs for reward items
+  - coal_lump = 10 points
+  - iron_lump = 30 points
+  - silver_lump = 60 points
+  - gold_lump = 100 points
+
+The traveller core implements a complex state machine with multiple behavioral modes, integrating enhanced pathfinding, destination finding, and specialized interactions with bathroom fixtures, kitchen appliances, and furniture. It includes shower, toilet, refrigerator, and bookshelf interactions with proper state management, automatic timers, comprehensive point/reward systems, and detailed per-maidroid metrics tracking. The maidroid can read books from bookshelves, selecting random books and displaying their content, with a comprehensive point system that rewards different activities and automatic reward distribution.

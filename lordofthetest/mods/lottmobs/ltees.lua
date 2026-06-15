@@ -38,8 +38,7 @@ function attach_tool(self, tool_name, attachment_point, position, rotation)
 	end
 	
 	-- Create new wielded item entity using itemframes entity
-	-- self.wield_item = minetest.add_entity(self.object:get_pos(), "itemframes:item")
-    self.wield_item = minetest.add_entity(self.object:get_pos(), "maidroid:wield_item", minetest.serialize({state = "new"}))
+	self.wield_item = minetest.add_entity(self.object:get_pos(), "itemframes:item")
 	if self.wield_item then
 		local lua_entity = self.wield_item:get_luaentity()
 		if lua_entity then

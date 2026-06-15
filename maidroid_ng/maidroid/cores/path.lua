@@ -141,7 +141,7 @@ local function place_path_markers(self, path)
 			-- lf("path", "Placed temporary path marker at " .. minetest.pos_to_string(place_pos) .. " (path node: " .. path_node.name .. ")")
 			
 			-- Set up guaranteed removal timer for each node
-			minetest.after(2, function()
+			minetest.after(0.5, function()
 				local node = minetest.get_node(place_pos)
 				if node.name == "maidroid:path_marker" then
 					minetest.set_node(place_pos, { name = "air" })
@@ -177,7 +177,7 @@ local function place_destination_marker(destination)
 		-- lf("path", "Placed destination marker at " .. minetest.pos_to_string(place_pos))
 		
 		-- Set up guaranteed removal timer for destination marker (10 seconds)
-		minetest.after(1, function()
+		minetest.after(0.5, function()
 			local node = minetest.get_node(place_pos)
 			if node.name == "maidroid:destination_marker" then
 				minetest.set_node(place_pos, { name = "air" })

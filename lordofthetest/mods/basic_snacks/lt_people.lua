@@ -66,6 +66,8 @@ local function get_preview(texture_file)
 	-- Full Preview
 	skin = "(((" .. skin .. ")^[resize:64x128)^[mask:skindb_transform.png)"
 
+	-- minetest.log("warning", "xxxxxxxx Final skin string: " .. tostring(skin))
+
 	return skin
 end
 

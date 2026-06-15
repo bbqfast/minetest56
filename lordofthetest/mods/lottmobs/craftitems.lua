@@ -60,3 +60,4 @@ minetest.register_craft({
     recipe = {"bucket:bucket_water", "lottmobs:dirty_trousers"},
     replacements = {{"bucket:bucket_water", "bucket:bucket_empty"}},
 })
+
