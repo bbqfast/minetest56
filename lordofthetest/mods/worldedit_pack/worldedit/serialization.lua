@@ -228,6 +228,23 @@ function worldedit.allocate(origin_pos, value)
 end
 
 
+--- Fills the entire region between pos1 and pos2 with air nodes.
+-- @param pos1 Low corner position.
+-- @param pos2 High corner position.
+function worldedit.fill_region_with_air(pos1, pos2)
+	pos1, pos2 = worldedit.sort_pos(pos1, pos2)
+	local air_node = {name = "air", param1 = 0, param2 = 0}
+	
+	for x = pos1.x, pos2.x do
+		for y = pos1.y, pos2.y do
+			for z = pos1.z, pos2.z do
+				minetest.set_node({x = x, y = y, z = z}, air_node)
+			end
+		end
+	end
+end
+
+
 -- Internal
 function worldedit.allocate_with_nodes(origin_pos, nodes)
 	local huge = math.huge
@@ -256,6 +273,9 @@ function worldedit.deserialize(origin_pos, value)
 
 	local pos1, pos2 = worldedit.allocate_with_nodes(origin_pos, nodes)
 	worldedit.keep_loaded(pos1, pos2)
+
+	-- Fill entire region with air before placing schematic nodes
+	worldedit.fill_region_with_air(pos1, pos2)
 
 	local origin_x, origin_y, origin_z = origin_pos.x, origin_pos.y, origin_pos.z
 	local add_node, get_meta = minetest.add_node, minetest.get_meta

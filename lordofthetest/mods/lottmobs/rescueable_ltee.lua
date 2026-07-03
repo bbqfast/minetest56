@@ -42,6 +42,9 @@ local function create_rescueable_ltee(ltee_type)
         return nil
     end
     
+    lf("rescueable_ltee", string.format("DEBUG: Creating entity with ltee_type=%s, nametag=%s", 
+        ltee_type, type_config.nametag))
+    
     return {
         type = "npc",
         race = "GAMEltee",
@@ -71,6 +74,7 @@ local function create_rescueable_ltee(ltee_type)
         
         -- Peaceful behavior
         peaceful = true,
+        passive = true,
         attack_type = "none",
         group_attack = false,
         step = 1,
@@ -104,13 +108,45 @@ local function create_rescueable_ltee(ltee_type)
         },
         
         -- Rescue state tracking
-        on_activate = function(self)
+        on_spawn = function(self)
+            lf("rescueable_ltee", "DEBUG: on_spawn called!")
             self.rescued = false
             self.rescue_quotes = rescue_quotes
             self.current_quote_index = math.random(1, #rescue_quotes)
             self.quote_timer = 0
             self.help_timer = 0
-            lf("rescueable_ltee", string.format("%s activated", type_config.nametag))
+            
+            -- Always determine ltee_type from entity name (most reliable method)
+            local entity_name = self.object:get_properties().name or ""
+            lf("rescueable_ltee", string.format("DEBUG SPAWN: entity_name=%s, nametag=%s", 
+                entity_name, tostring(self.nametag)))
+            
+            if entity_name:find("carlos") then
+                self.ltee_type = "carlos"
+                lf("rescueable_ltee", "DEBUG SPAWN: Set ltee_type=carlos from entity name")
+            elseif entity_name:find("mary") then
+                self.ltee_type = "mary"
+                lf("rescueable_ltee", "DEBUG SPAWN: Set ltee_type=mary from entity name")
+            else
+                -- Fallback to nametag method
+                lf("rescueable_ltee", "DEBUG SPAWN: Entity name match failed, trying nametag fallback")
+                if self.nametag and self.nametag:find("Carlos") then
+                    self.ltee_type = "carlos"
+                    lf("rescueable_ltee", "DEBUG SPAWN: Set ltee_type=carlos from nametag")
+                elseif self.nametag and self.nametag:find("Mary") then
+                    self.ltee_type = "mary"
+                    lf("rescueable_ltee", "DEBUG SPAWN: Set ltee_type=mary from nametag")
+                else
+                    self.ltee_type = "mary" -- Default fallback
+                    lf("rescueable_ltee", "DEBUG SPAWN: Used default fallback ltee_type=mary")
+                end
+            end
+            
+            lf("rescueable_ltee", string.format("DEBUG SPAWN: Final ltee_type=%s, entity=%s, nametag=%s", 
+                self.ltee_type, entity_name, tostring(self.nametag)))
+            
+            lf("rescueable_ltee", string.format("%s spawned with ltee_type=%s", 
+                type_config.nametag, self.ltee_type))
         end,
         
         -- Right-click interaction for rescue
@@ -124,6 +160,10 @@ local function create_rescueable_ltee(ltee_type)
                 return
             end
             
+            -- Debug: Log LTee type info
+            lf("rescueable_ltee", string.format("DEBUG: self.ltee_type = %s, self.nametag = %s", 
+                tostring(self.ltee_type), tostring(self.nametag)))
+            
             -- Get LTee type configuration
             local type_config = rescueable_ltee_types[self.ltee_type or "mary"]
             
@@ -135,6 +175,10 @@ local function create_rescueable_ltee(ltee_type)
                 rescue_quotes = self.rescue_quotes,
                 ltee_type = self.ltee_type or "mary",
             }
+            
+            -- Debug: Log what we're sending to quest system
+            lf("rescueable_ltee", string.format("DEBUG: Sending ltee_data.ltee_type = %s to quest system", 
+                tostring(ltee_data.ltee_type)))
             
             -- Create rescued LTee spawn egg following NPC Preview Generation Guide
             local rescued_egg = ItemStack(type_config.rescued_egg_name)
@@ -170,6 +214,30 @@ local function create_rescueable_ltee(ltee_type)
                 
                 lf("rescueable_ltee", string.format("%s rescued by %s at %s", 
                     type_config.nametag, player_name, minetest.pos_to_string(ltee_data.original_pos)))
+                
+                -- Hook into quest system for rescue progress tracking
+                lf("rescueable_ltee", string.format("About to call quest API - player: %s, ltee_type: %s", 
+                    player_name, ltee_data.ltee_type))
+                    
+                if lottmobs_quest_api then
+                    lf("rescueable_ltee", "Quest API available, calling update_rescue_progress")
+                    local updated_quests = lottmobs_quest_api.update_rescue_progress(
+                        player_name, 
+                        ltee_data.ltee_type, 
+                        ltee_data.original_pos
+                    )
+                    
+                    lf("rescueable_ltee", string.format("Quest API returned %d updates", 
+                        #updated_quests > 0 and #updated_quests or 0))
+                    
+                    -- Log quest updates
+                    for quest_id, update_type in pairs(updated_quests) do
+                        lf("rescueable_ltee", string.format("Quest %s %s for player %s", 
+                            quest_id, update_type, player_name))
+                    end
+                else
+                    lf("rescueable_ltee", "Quest system not available - rescue not tracked")
+                end
             end
         end,
         
@@ -227,9 +295,13 @@ end
 
 -- Register all rescueable LTee types
 for ltee_type, _ in pairs(rescueable_ltee_types) do
+    lf("rescueable_ltee", string.format("DEBUG: Registering mob type: %s", ltee_type))
     local mob_def = create_rescueable_ltee(ltee_type)
     if mob_def then
         mobs:register_mob("lottmobs:rescueable_" .. ltee_type .. "_ltee", mob_def)
+        lf("rescueable_ltee", string.format("DEBUG: Successfully registered mob: lottmobs:rescueable_%s_ltee", ltee_type))
+    else
+        lf("rescueable_ltee", string.format("ERROR: Failed to create mob definition for: %s", ltee_type))
     end
 end
 
@@ -303,6 +375,8 @@ for ltee_type, type_config in pairs(rescueable_ltee_types) do
             if not player then 
                 return false, "Player not found" 
             end
+            
+            lf("rescueable_ltee", string.format("DEBUG: Spawn command called with ltee_type=%s", ltee_type))
             
             local pos = vector.add(player:get_pos(), {x = 2, y = 0, z = 0})
             local obj = minetest.add_entity(pos, "lottmobs:rescueable_" .. ltee_type .. "_ltee")

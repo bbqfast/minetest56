@@ -9,6 +9,7 @@ local LORAN = -0.4
 
 ctrl-D to open
 'mods/lottmapgen/init.lua'
+"mods/lottmapgen/init.lua"
 'mods/lottmapgen/nodes.lua'
 'mods/lottmapgen/functions.lua'
 'mods/lottmapgen/schematics.lua' - map we file to array
@@ -134,3 +135,15 @@ wrong section,
 there are 3 sections, 
 the 2x6 (top section)
 we sholud put craftable on top of top section, then fill it will craftable item
+
+
+
+checkin notes
+------------------
+- added birthdayer, birthday house and music
+- initial rescuable Ltee
+- Lots of context files
+- added mining guide
+- bug fix traveller UI incorrectly update from different player
+
+
