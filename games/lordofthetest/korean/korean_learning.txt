@@ -1,0 +1,40 @@
+------------
+create korean language study TTS input
+translate each sentence above, do not miss any sentence
+
+format:
+
+sentence number. (1..2...3...4)
+english meaning
+<korean>,
+<korean> (repeat),
+<korean> (repeat),
+<korean> (repeat),
+english meaning (repeat)
+
+Repeat same korean word each line:
+<korean word>, <korean word>, <korean word>, <korean word>, <korean word> - roman pronounciation - English is: meaning
+Example:
+will be
+기억, 기억, 기억, 기억, 기억, gieok.   English is:  memory
+
+<korean> repeat,
+<korean> repeat,
+english meaning repeat
+
+- ignore english word, don't translate english
+- do not forgot "english is"
+- make sure capture every vocab in the sentense
+- comma after each line
+- do not need to list english vocab
+- treat grammar-attached forms as one vocab
+------------
+
+flash card
+------------
+Create flashcard for List all the korean vocabury in same order above in flash card csv format only list Nouns, Verb, Adverbs, Adjectives, no pronouns "korean","roman and meaning, uncojugated form, conjugated meaning" only list Conjunction, Particles, pronouns don't not remove cojunctive forms
+
+
+------------
+
+

@@ -1,0 +1,1 @@
+powershell -Command "Get-Content -Path debug.txt -Tail 100 -Wait"
